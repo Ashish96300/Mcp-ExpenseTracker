@@ -1,0 +1,13 @@
+
+[project]
+name = "my-mcp"
+version = "0.1.0"
+description = "Expense Tracker MCP Server"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.118.0",
+    "fastmcp==2.12.4",
+    "psycopg[binary]>=3.2",
+    "sqlalchemy>=2.0.43",
+]
