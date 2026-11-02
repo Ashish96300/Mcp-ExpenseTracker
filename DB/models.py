@@ -9,7 +9,7 @@ class User(Base):
   id = Column(Integer, primary_key=True)
   name = Column(String, nullable=False)
   email = Column(String, unique=True, index=True, nullable=False)
-
+  password_hash = Column(String(255), nullable=False)
   expenses = relationship("Expense", back_populates="user")
 
 
