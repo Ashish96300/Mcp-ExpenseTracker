@@ -227,3 +227,21 @@ if __name__ == "__main__":
         port=port,
         path="/mcp",
     )
+
+
+
+
+# fetch("/api/expenses", {
+#   method: "POST",
+#   headers: {
+#     "Content-Type": "application/json"
+#   },
+#   body: JSON.stringify({
+#     amount: 250,
+#     description: "Dinner",
+#     expense_date: "2026-11-03",
+#     category: "Food"
+#   })
+# })
+# .then(res => res.json())
+# .then(console.log);
