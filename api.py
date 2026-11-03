@@ -1,16 +1,165 @@
 
 import os
 import hmac
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Generator
 
-from fastapi import FastAPI, Header, HTTPException
+import jwt
+from dotenv import load_dotenv
+from fastapi import (
+    FastAPI,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    status,
+)
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from DB.get_db import get_db
+from DB.models import User
 from services.auth_service import provision_workos_user
+from services.expense_service import (
+    create_expense,
+    get_expenses as fetch_expenses,
+    update_expense as modify_expense,
+    delete_expense as remove_expense,
+)
 
+
+load_dotenv()
 
 app = FastAPI(title="Personal Finance API")
 
+# Internal JWT configuration
+INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET")
+INTERNAL_API_ISSUER = "finora-web"
+INTERNAL_API_AUDIENCE = os.getenv(
+    "INTERNAL_API_AUDIENCE",
+    "http://localhost:8001",
+)
+
+security = HTTPBearer(auto_error=False)
+
+
+# --------------------------------------------------
+# DATABASE DEPENDENCY
+# --------------------------------------------------
+
+def get_db_session() -> Generator[Session, None, None]:
+    db = get_db()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# --------------------------------------------------
+# AUTHENTICATION DEPENDENCY
+# --------------------------------------------------
+
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db_session),
+) -> int:
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+
+    if not INTERNAL_API_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API authentication is not configured.",
+        )
+
+    try:
+        claims = jwt.decode(
+            credentials.credentials,
+            INTERNAL_API_SECRET,
+            algorithms=["HS256"],
+            issuer=INTERNAL_API_ISSUER,
+            audience=INTERNAL_API_AUDIENCE,
+            options={
+                "require": ["exp", "iat", "iss", "aud", "sub"]
+            },
+        )
+
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token.",
+        )
+
+    workos_user_id = claims.get("sub")
+
+    if not isinstance(workos_user_id, str) or not workos_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user identity.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.workos_user_id == workos_user_id)
+        .first()
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Finance account not found.",
+        )
+
+    return user.id
+
+
+# --------------------------------------------------
+# REQUEST SCHEMAS
+# --------------------------------------------------
+
+class CreateExpenseRequest(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    description: str = Field(min_length=1, max_length=500)
+    expense_date: date
+    category: str = Field(min_length=1, max_length=100)
+
+
+class UpdateExpenseRequest(BaseModel):
+    amount: Decimal | None = Field(
+        default=None, gt=0, max_digits=12, decimal_places=2
+    )
+    description: str | None = Field(
+        default=None, min_length=1, max_length=500
+    )
+    expense_date: date | None = None
+    category: str | None = Field(
+        default=None, min_length=1, max_length=100
+    )
+
+
+# --------------------------------------------------
+# RESPONSE SERIALIZATION
+# --------------------------------------------------
+
+def serialize_expense(expense) -> dict:
+    return {
+        "id": expense.id,
+        "amount": str(expense.amount),
+        "description": expense.description,
+        "date": expense.date.isoformat(),
+        "category": expense.category,
+    }
+
+
+# --------------------------------------------------
+# USER PROVISIONING
+# --------------------------------------------------
 
 class ProvisionUserRequest(BaseModel):
     workos_user_id: str = Field(min_length=1, max_length=255)
@@ -24,6 +173,7 @@ def provision_user(
     x_provisioning_secret: str = Header(
         alias="X-Provisioning-Secret"
     ),
+    db: Session = Depends(get_db_session),
 ):
     expected_secret = os.getenv("PROVISIONING_SECRET")
 
@@ -41,8 +191,6 @@ def provision_user(
             status_code=401,
             detail="Unauthorized.",
         )
-
-    db = get_db()
 
     try:
         user, created = provision_workos_user(
@@ -65,5 +213,123 @@ def provision_user(
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error))
 
-    finally:
-        db.close()
+
+# --------------------------------------------------
+# CREATE EXPENSE
+# --------------------------------------------------
+
+@app.post("/expenses", status_code=status.HTTP_201_CREATED)
+def add_expense(
+    payload: CreateExpenseRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    expense = create_expense(
+        db=db,
+        user_id=user_id,
+        amount=payload.amount,
+        description=payload.description,
+        expense_date=payload.expense_date,
+        category=payload.category,
+    )
+
+    return {
+        "message": "Expense created successfully.",
+        "expense": serialize_expense(expense),
+    }
+
+
+# --------------------------------------------------
+# GET EXPENSES
+# --------------------------------------------------
+
+@app.get("/expenses")
+def get_user_expenses(
+    start_date: date | None = None,
+    end_date: date | None = None,
+    category: str | None = Query(default=None),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=422,
+            detail="Start date cannot be after end date.",
+        )
+
+    expenses = fetch_expenses(
+        db=db,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        category=category,
+    )
+
+    return [serialize_expense(expense) for expense in expenses]
+
+
+# --------------------------------------------------
+# UPDATE EXPENSE
+# --------------------------------------------------
+
+@app.patch("/expenses/{expense_id}")
+def update_user_expense(
+    expense_id: int,
+    payload: UpdateExpenseRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    updates = payload.model_dump(exclude_unset=True)
+
+    if not updates or all(value is None for value in updates.values()):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one field to update.",
+        )
+
+    expense = modify_expense(
+        db=db,
+        user_id=user_id,
+        expense_id=expense_id,
+        **updates,
+    )
+
+    if expense is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Expense not found.",
+        )
+
+    return {
+        "message": "Expense updated successfully.",
+        "expense": serialize_expense(expense),
+    }
+
+
+# --------------------------------------------------
+# DELETE EXPENSE
+# --------------------------------------------------
+
+@app.delete("/expenses/{expense_id}")
+def delete_user_expense(
+    expense_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    deleted = remove_expense(
+        db=db,
+        user_id=user_id,
+        expense_id=expense_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Expense not found.",
+        )
+
+    return {"message": "Expense deleted successfully."}

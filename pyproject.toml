@@ -11,5 +11,6 @@ dependencies = [
     "fastapi>=0.118.0",
     "fastmcp==2.12.4",
     "psycopg[binary]>=3.2",
+    "pyjwt[crypto]>=2.15.1",
     "sqlalchemy>=2.0.43",
 ]
