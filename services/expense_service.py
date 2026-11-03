@@ -50,6 +50,52 @@ def get_expenses(
     return query.order_by(Expense.date.desc()).all()
 
 
+def get_expenses_paginated(
+    db: Session,
+    user_id: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    category: str | None = None,
+    page: int = 1,
+    limit: int = 10,
+):
+    query = db.query(Expense).filter(
+        Expense.user_id == user_id
+    )
+
+    if start_date:
+        query = query.filter(Expense.date >= start_date)
+
+    if end_date:
+        query = query.filter(Expense.date <= end_date)
+
+    if category:
+        query = query.filter(Expense.category == category)
+
+    # Count matching records before applying pagination.
+    total = query.count()
+
+    # Fetch only the requested page.
+    offset = (page - 1) * limit
+
+    items = (
+        query
+        .order_by(Expense.date.desc(), Expense.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    total_pages = (total + limit - 1) // limit
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
+
 
 def update_expense(
     db: Session,

@@ -25,10 +25,19 @@ from services.auth_service import provision_workos_user
 from services.expense_service import (
     create_expense,
     get_expenses as fetch_expenses,
+    get_expenses_paginated as fetch_paginated_expenses,
     update_expense as modify_expense,
     delete_expense as remove_expense,
 )
 
+
+from datetime import datetime
+
+from services.summary_service import (
+    get_monthly_summary,
+    get_category_summary,
+    get_monthly_trend,
+)
 
 load_dotenv()
 
@@ -244,31 +253,118 @@ def add_expense(
 # GET EXPENSES
 # --------------------------------------------------
 
+
 @app.get("/expenses")
 def get_user_expenses(
     start_date: date | None = None,
     end_date: date | None = None,
     category: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db_session),
 ):
-
     if start_date and end_date and start_date > end_date:
         raise HTTPException(
             status_code=422,
             detail="Start date cannot be after end date.",
         )
 
-    expenses = fetch_expenses(
+    result = fetch_paginated_expenses(
         db=db,
         user_id=user_id,
         start_date=start_date,
         end_date=end_date,
         category=category,
+        page=page,
+        limit=limit,
     )
 
-    return [serialize_expense(expense) for expense in expenses]
+    return {
+        "items": [
+            serialize_expense(expense)
+            for expense in result["items"]
+        ],
+        "total": result["total"],
+        "page": result["page"],
+        "limit": result["limit"],
+        "total_pages": result["total_pages"],
+    }
 
+from datetime import datetime
+
+
+@app.get("/summary/monthly")
+def monthly_summary(
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    try:
+        month_date = datetime.strptime(month, "%Y-%m").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid month. Use YYYY-MM format.",
+        )
+
+    result = get_monthly_summary(db, user_id, month_date)
+
+    return {
+        "month": result["month"],
+        "total_spent": str(result["total_spent"]),
+        "transaction_count": result["transaction_count"],
+        "previous_month_total": str(result["previous_month_total"]),
+        "percentage_change": (
+            float(result["percentage_change"])
+            if result["percentage_change"] is not None
+            else None
+        ),
+    }
+
+
+@app.get("/summary/categories")
+def category_summary(
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    try:
+        month_date = datetime.strptime(month, "%Y-%m").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid month. Use YYYY-MM format.",
+        )
+
+    results = get_category_summary(db, user_id, month_date)
+
+    return [
+        {
+            "category": item["category"],
+            "total": str(item["total"]),
+            "transaction_count": item["transaction_count"],
+        }
+        for item in results
+    ]
+
+
+@app.get("/summary/trend")
+def monthly_trend(
+    months: int = Query(default=6, ge=1, le=24),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    results = get_monthly_trend(db, user_id, months)
+
+    return [
+        {
+            "month": item["month"],
+            "total_spent": str(item["total_spent"]),
+            "transaction_count": item["transaction_count"],
+        }
+        for item in results
+    ]
 
 # --------------------------------------------------
 # UPDATE EXPENSE
