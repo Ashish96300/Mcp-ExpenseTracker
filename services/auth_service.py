@@ -1,87 +1,78 @@
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from argon2 import PasswordHasher
-from argon2.exceptions import HashingError
 
 from DB.models import User
 
-from argon2.exceptions import (
-    VerifyMismatchError,
-    VerificationError,
-)
 
-password_hasher = PasswordHasher()
-
-
-def register_user(
+def provision_workos_user(
     db: Session,
-    name: str,
+    workos_user_id: str,
     email: str,
-    password: str,
+    name: str,
 ):
-    name = name.strip()
     email = email.strip().lower()
+    name = name.strip() or email
 
-    if not name:
-        raise ValueError("Name is required.")
-
-    if not email:
-        raise ValueError("Email is required.")
-
-    if len(password) < 8:
-        raise ValueError("Password must contain at least 8 characters.")
-
-    existing_user = db.query(User).filter(
-        User.email == email
-    ).first()
-
-    if existing_user:
-        raise ValueError("Email is already registered.")
-
-    password_hash = password_hasher.hash(password)
-
-    new_user = User(
-        name=name,
-        email=email,
-        password_hash=password_hash,
+    # Check whether this WorkOS identity already exists.
+    user = (
+        db.query(User)
+        .filter(User.workos_user_id == workos_user_id)
+        .first()
     )
 
-    try:
-        db.add(new_user)
+    if user:
+        # Never allow an email already linked to another identity.
+        email_owner = (
+            db.query(User)
+            .filter(User.email == email, User.id != user.id)
+            .first()
+        )
+
+        if email_owner:
+            raise ValueError("This email is linked to another account.")
+
+        user.email = email
+        user.name = name
         db.commit()
-        db.refresh(new_user)
-        return new_user
+        db.refresh(user)
+
+        return user, False
+
+    # Prevent silently linking an existing account by email.
+    email_owner = (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
+    )
+
+    if email_owner:
+        raise ValueError("This email is already linked to another account.")
+
+    user = User(
+        workos_user_id=workos_user_id,
+        email=email,
+        name=name,
+    )
+
+    db.add(user)
+
+    try:
+        db.commit()
+        db.refresh(user)
+        return user, True
 
     except IntegrityError:
         db.rollback()
-        raise ValueError("Email is already registered.")
 
-    except Exception:
-        db.rollback()
-        raise
-
-
-def authenticate_user(
-    db: Session,
-    email: str,
-    password: str,
-):
-    email = email.strip().lower()
-
-    user = db.query(User).filter(
-        User.email == email
-    ).first()
-
-    if user is None:
-        return None
-
-    try:
-        password_hasher.verify(
-            user.password_hash,
-            password,
+        # Handle a concurrent request for the same WorkOS identity.
+        user = (
+            db.query(User)
+            .filter(User.workos_user_id == workos_user_id)
+            .first()
         )
-    except (VerifyMismatchError, VerificationError):
-        return None
 
-    return user
+        if user:
+            return user, False
+
+        raise ValueError("Could not create the finance account.")
