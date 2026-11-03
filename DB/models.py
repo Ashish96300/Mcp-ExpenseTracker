@@ -4,13 +4,21 @@ from sqlalchemy.orm import relationship
 
 
 class User(Base):
-  __tablename__ = "users"
+    __tablename__ = "users"
 
-  id = Column(Integer, primary_key=True)
-  name = Column(String, nullable=False)
-  email = Column(String, unique=True, index=True, nullable=False)
-  password_hash = Column(String(255), nullable=False)
-  expenses = relationship("Expense", back_populates="user")
+    id = Column(Integer, primary_key=True)
+
+    workos_user_id = Column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False
+    )
+
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+
+    expenses = relationship("Expense", back_populates="user")
 
 
 class Expense(Base):

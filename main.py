@@ -1,11 +1,17 @@
 
+import os
 from datetime import date
 from decimal import Decimal
 
+from dotenv import load_dotenv
 from fastmcp import FastMCP
+from fastmcp.server.auth.providers.jwt import JWTVerifier
+from fastmcp.server.auth.providers.workos import AuthKitProvider
 from fastmcp.server.dependencies import get_access_token
 
 from DB.get_db import get_db
+from DB.models import User
+
 from services.expense_service import (
     create_expense,
     get_expenses as fetch_expenses,
@@ -13,31 +19,76 @@ from services.expense_service import (
     delete_expense as remove_expense,
 )
 
-mcp = FastMCP(name="Expense-Tracker")
+load_dotenv()
+
+# WorkOS configuration
+AUTHKIT_DOMAIN = os.getenv(
+    "AUTHKIT_DOMAIN",
+    "https://inspiring-smile-02-staging.authkit.app"
+)
+
+# Local default for development.
+# Replace this with your Render service URL after deployment.
+MCP_BASE_URL = os.getenv(
+    "MCP_BASE_URL",
+    "http://localhost:8000"
+).rstrip("/")
+
+MCP_RESOURCE_URL = f"{MCP_BASE_URL}/mcp"
+
+# Verify WorkOS-issued JWTs.
+token_verifier = JWTVerifier(
+    jwks_uri=f"{AUTHKIT_DOMAIN}/oauth2/jwks",
+    issuer=AUTHKIT_DOMAIN,
+    audience=MCP_RESOURCE_URL,
+    algorithm="RS256",
+)
+
+# Connect AuthKit to FastMCP.
+auth_provider = AuthKitProvider(
+    authkit_domain=AUTHKIT_DOMAIN,
+    base_url=MCP_BASE_URL,
+    token_verifier=token_verifier,
+)
+
+mcp = FastMCP(
+    name="Personal Finance Manager",
+    auth=auth_provider,
+)
 
 
-def get_authenticated_user_id() -> int:
-    """Get the user ID from the verified MCP access token."""
+def get_authenticated_user_id(db) -> int:
+    """
+    Resolve the verified WorkOS identity to our local database user.
 
-    token = get_access_token()
+    Never accept a user ID supplied by an MCP client or an LLM.
+    """
 
-    if token is None:
+    access_token = get_access_token()
+
+    if access_token is None:
         raise PermissionError("Authentication required.")
 
-    user_id = token.claims.get("user_id")
+    workos_user_id = access_token.claims.get("sub")
 
-    if user_id is None:
-        raise PermissionError("User identity missing from access token.")
+    if not isinstance(workos_user_id, str) or not workos_user_id.strip():
+        raise PermissionError("Invalid authenticated identity.")
 
-    try:
-        return int(user_id)
-    except (TypeError, ValueError):
-        raise PermissionError("Invalid user identity.")
+    user = (
+        db.query(User)
+        .filter(User.workos_user_id == workos_user_id)
+        .first()
+    )
+
+    if user is None:
+        raise PermissionError(
+            "Your WorkOS account is not linked to a finance account."
+        )
+
+    return user.id
 
 
 def serialize_expense(expense) -> dict:
-    """Convert an Expense model into a JSON-friendly dictionary."""
-
     return {
         "id": expense.id,
         "amount": str(expense.amount),
@@ -54,12 +105,13 @@ def add_expenses(
     expense_date: date,
     category: str,
 ) -> dict:
-    """Add a new expense for the authenticated user."""
+    """Add an expense to the authenticated user's account."""
 
-    user_id = get_authenticated_user_id()
     db = get_db()
 
     try:
+        user_id = get_authenticated_user_id(db)
+
         expense = create_expense(
             db=db,
             user_id=user_id,
@@ -73,6 +125,7 @@ def add_expenses(
             "message": "Expense added successfully.",
             "expense": serialize_expense(expense),
         }
+
     finally:
         db.close()
 
@@ -83,12 +136,13 @@ def get_expenses(
     end_date: date | None = None,
     category: str | None = None,
 ) -> list:
-    """Get expenses belonging to the authenticated user."""
+    """Retrieve expenses belonging to the authenticated user."""
 
-    user_id = get_authenticated_user_id()
     db = get_db()
 
     try:
+        user_id = get_authenticated_user_id(db)
+
         expenses = fetch_expenses(
             db=db,
             user_id=user_id,
@@ -97,7 +151,8 @@ def get_expenses(
             category=category,
         )
 
-        return [serialize_expense(exp) for exp in expenses]
+        return [serialize_expense(expense) for expense in expenses]
+
     finally:
         db.close()
 
@@ -112,10 +167,11 @@ def update_expense(
 ) -> dict:
     """Update an expense belonging to the authenticated user."""
 
-    user_id = get_authenticated_user_id()
     db = get_db()
 
     try:
+        user_id = get_authenticated_user_id(db)
+
         expense = modify_expense(
             db=db,
             user_id=user_id,
@@ -133,6 +189,7 @@ def update_expense(
             "message": "Expense updated successfully.",
             "expense": serialize_expense(expense),
         }
+
     finally:
         db.close()
 
@@ -141,10 +198,11 @@ def update_expense(
 def delete_expense(expense_id: int) -> dict:
     """Delete an expense belonging to the authenticated user."""
 
-    user_id = get_authenticated_user_id()
     db = get_db()
 
     try:
+        user_id = get_authenticated_user_id(db)
+
         deleted = remove_expense(
             db=db,
             user_id=user_id,
@@ -155,9 +213,17 @@ def delete_expense(expense_id: int) -> dict:
             return {"message": "Expense not found."}
 
         return {"message": "Expense deleted successfully."}
+
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    mcp.run()
+    port = int(os.getenv("PORT", "8000"))
+
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=port,
+        path="/mcp",
+    )
