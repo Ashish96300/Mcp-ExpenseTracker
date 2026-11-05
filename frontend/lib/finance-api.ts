@@ -5,7 +5,8 @@ import { SignJWT } from "jose";
 const API_URL = process.env.FINANCE_API_URL;
 const API_SECRET = process.env.INTERNAL_API_SECRET;
 
-const API_AUDIENCE = "http://localhost:8001";
+const API_AUDIENCE =
+  process.env.INTERNAL_API_AUDIENCE ?? "http://localhost:8001";
 
 export async function getFinanceApiHeaders() {
   const { user } = await withAuth();
