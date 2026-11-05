@@ -18,7 +18,7 @@ async function DashboardContent() {
   const { user } = await withAuth();
 
   if (!user) {
-    redirect("/login");
+    redirect("/sign-in");
   }
 
   const firstName = user.firstName || "there";

@@ -1,0 +1,18 @@
+{
+  "redirect_uris": [
+    "http://127.0.0.1:16443/oauth/callback"
+  ],
+  "token_endpoint_auth_method": "none",
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "application_type": "native",
+  "client_name": "MCP CLI Proxy",
+  "client_id": "client_01M6KTTAWJB9AJEQH1JJ5XKF22",
+  "client_id_issued_at": 1793814506,
+  "issuer": "https://inspiring-smile-02-staging.authkit.app"
+}

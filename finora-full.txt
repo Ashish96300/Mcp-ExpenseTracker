@@ -1,0 +1,4338 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files and files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: **/*.{py,js,jsx,ts,tsx,css,html,json,toml,ini,md}
+- Files matching these patterns are excluded: **/node_modules/**, **/.venv/**, **/__pycache__/**, **/dist/**, **/build/**, **/.git/**, **/.next/**, **/alembic/versions/**
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+alembic/
+  env.py
+DB/
+  db.py
+  get_db.py
+  models.py
+frontend/
+  app/
+    analytics/
+      page.tsx
+    api/
+      expenses/
+        [expenseId]/
+          route.ts
+        route.ts
+      summary/
+        [summaryType]/
+          route.ts
+    callback/
+      route.ts
+    dashboard/
+      ExpenseOverview.tsx
+      page.tsx
+    login/
+      page.tsx
+    profile/
+      page.tsx
+    register/
+      page.tsx
+    sign-in/
+      route.ts
+    sign-up/
+      route.ts
+    transactions/
+      page.tsx
+    globals.css
+    layout.tsx
+    page.tsx
+  lib/
+    finance-api.ts
+  AGENTS.md
+  next.config.ts
+  package.json
+  proxy.ts
+  README.md
+  tsconfig.json
+services/
+  __init__.py
+  auth_service.py
+  expense_service.py
+  summary_service.py
+src/
+  test.py
+alembic.ini
+api.py
+main.py
+pyproject.toml
+README.md
+test_summary.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="alembic/env.py">
+from logging.config import fileConfig
+
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
+
+from alembic import context
+import os
+from dotenv import load_dotenv
+
+from DB import models
+from DB.db import Base
+
+
+# this is the Alembic Config object, which provides
+# access to the values within the .ini file in use.
+config = context.config
+load_dotenv()
+database_url = os.getenv("DATABASE_URL")
+
+if not database_url:
+    raise RuntimeError("DATABASE_URL is not configured")
+
+config.set_main_option(
+    "sqlalchemy.url",
+    database_url.replace("%", "%%")
+)
+
+# Interpret the config file for Python logging.
+# This line sets up loggers basically.
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# add your model's MetaData object here
+# for 'autogenerate' support
+# from myapp import mymodel
+# target_metadata = mymodel.Base.metadata
+target_metadata = Base.metadata
+
+# other values from the config, defined by the needs of env.py,
+# can be acquired:
+# my_important_option = config.get_main_option("my_important_option")
+# ... etc.
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode.
+
+    This configures the context with just a URL
+    and not an Engine, though an Engine is acceptable
+    here as well.  By skipping the Engine creation
+    we don't even need a DBAPI to be available.
+
+    Calls to context.execute() here emit the given string to the
+    script output.
+
+    """
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode.
+
+    In this scenario we need to create an Engine
+    and associate a connection with the context.
+
+    """
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection, target_metadata=target_metadata
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+</file>
+
+<file path="DB/get_db.py">
+from DB.db import SessionLocal
+
+def get_db():
+    db = SessionLocal()
+    return db
+</file>
+
+<file path="frontend/app/analytics/page.tsx">
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+type MonthlySummary = {
+  month: string;
+  total_spent: string;
+  transaction_count: number;
+  previous_month_total: string;
+  percentage_change: number | null;
+};
+
+type CategorySummary = {
+  category: string;
+  total: string;
+  transaction_count: number;
+};
+
+type TrendItem = {
+  month: string;
+  total_spent: string;
+  transaction_count: number;
+};
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatMonth(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+
+  return new Date(year, monthNumber - 1, 1).toLocaleDateString(
+    "en-IN",
+    { month: "short", year: "2-digit" }
+  );
+}
+
+// function getCurrentMonth() {
+//   const now = new Date();
+//   return `${now.getFullYear()}-${String(
+//     now.getMonth() + 1
+//   ).padStart(2, "0")}`;
+// }
+
+export default function AnalyticsPage() {
+//  const [selectedMonth, setSelectedMonth] = useState("");
+//   const [currentMonth, setCurrentMonth] = useState("");
+
+        const [currentMonth, setCurrentMonth] = useState("");
+        const [selectedMonth, setSelectedMonth] = useState("");
+
+        useEffect(() => {
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(
+            now.getMonth() + 1
+        ).padStart(2, "0")}`;
+
+        setCurrentMonth(month);
+        setSelectedMonth(month);
+        }, []);
+
+  const [summary, setSummary] = useState<MonthlySummary | null>(null);
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [trend, setTrend] = useState<TrendItem[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+    
+//   const fetchAnalytics = useCallback(async () => {
+//     try {
+//       const [summaryResponse, categoryResponse, trendResponse] =
+//         await Promise.all([
+//           fetch(`/api/summary/monthly?month=${selectedMonth}`, {
+//             cache: "no-store",
+//           }),
+//           fetch(`/api/summary/categories?month=${selectedMonth}`, {
+//             cache: "no-store",
+//           }),
+//           fetch("/api/summary/trend?months=6", {
+//             cache: "no-store",
+//           }),
+//         ]);
+
+//       if (
+//         !summaryResponse.ok ||
+//         !categoryResponse.ok ||
+//         !trendResponse.ok
+//       ) {
+//         throw new Error("Unable to load analytics.");
+//       }
+
+//       const [summaryData, categoryData, trendData] =
+//         await Promise.all([
+//           summaryResponse.json(),
+//           categoryResponse.json(),
+//           trendResponse.json(),
+//         ]);
+
+//       setSummary(summaryData);
+//       setCategories(categoryData);
+//       setTrend(trendData);
+//       setError("");
+//     } catch (err) {
+//       setError(
+//         err instanceof Error
+//           ? err.message
+//           : "Something went wrong."
+//       );
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [selectedMonth]);
+
+// useEffect(() => {
+//   const now = new Date();
+
+//   const month = `${now.getFullYear()}-${String(
+//     now.getMonth() + 1
+//   ).padStart(2, "0")}`;
+
+//   setCurrentMonth(month);
+//   setSelectedMonth(month);
+// }, []);
+
+// fetching useEfffect
+useEffect(() => {
+  if (!selectedMonth) return;
+
+  const controller = new AbortController();
+
+  async function loadAnalytics() {
+    try {
+    //   setLoading(true);
+
+      const [summaryResponse, categoryResponse, trendResponse] =
+        await Promise.all([
+          fetch(`/api/summary/monthly?month=${selectedMonth}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+          fetch(`/api/summary/categories?month=${selectedMonth}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+          fetch("/api/summary/trend?months=6", {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+        ]);
+
+      if (
+        !summaryResponse.ok ||
+        !categoryResponse.ok ||
+        !trendResponse.ok
+      ) {
+        throw new Error("Unable to load analytics.");
+      }
+
+      const [summaryData, categoryData, trendData] =
+        await Promise.all([
+          summaryResponse.json(),
+          categoryResponse.json(),
+          trendResponse.json(),
+        ]);
+
+      if (controller.signal.aborted) return;
+
+      setSummary(summaryData);
+      setCategories(categoryData);
+      setTrend(trendData);
+      setError("");
+    } catch (err) {
+      if (controller.signal.aborted) return;
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong."
+      );
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    }
+  }
+
+  loadAnalytics();
+
+  return () => controller.abort();
+}, [selectedMonth ,retryKey]);
+
+  const totalSpent = Number(summary?.total_spent ?? 0);
+  const previousTotal = Number(summary?.previous_month_total ?? 0);
+
+  const highestCategory = categories[0];
+
+  const maxCategoryAmount = Math.max(
+    ...categories.map((item) => Number(item.total)),
+    0
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-100 md:flex">
+
+      {/* Sidebar */}
+      <aside className="flex w-full flex-col bg-[#101B35] text-white md:min-h-screen md:w-64 md:shrink-0">
+        <div className="border-b border-white/10 px-6 py-5 md:px-7 md:py-6">
+          <Link href="/dashboard">
+            <h1 className="text-2xl font-bold tracking-wide">
+              Finora<span className="text-blue-400">.</span>
+            </h1>
+          </Link>
+
+          <p className="mt-1 text-xs text-slate-400">
+            Personal Finance Manager
+          </p>
+        </div>
+
+        <nav className="flex gap-2 overflow-x-auto p-3 md:flex-1 md:flex-col md:p-4">
+          <Link
+            href="/dashboard"
+            className="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <span>◫</span>
+            Overview
+          </Link>
+
+          <Link
+            href="/transactions"
+            className="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <span>⇄</span>
+            Transactions
+          </Link>
+
+          <Link
+            href="/analytics"
+            className="flex shrink-0 items-center gap-3 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white"
+          >
+            <span>▥</span>
+            Analytics
+          </Link>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="min-w-0 flex-1">
+
+        <header className="border-b border-slate-200 bg-white px-5 py-5 md:px-9">
+          <h2 className="text-lg font-semibold text-slate-800">
+            Analytics
+          </h2>
+          <p className="text-sm text-slate-500">
+            Understand your spending habits.
+          </p>
+        </header>
+
+        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 md:p-9">
+
+          {/* Heading and on Selector */}
+          <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+                Financial Analytics
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">
+                A closer look at your expenses.
+              </p>
+            </div>
+
+            <input
+            type="month"
+            value={selectedMonth}
+            max={currentMonth}
+            disabled={!currentMonth}
+            onChange={(e) => {
+            setLoading(true);
+            setError("");
+            setSelectedMonth(e.target.value);
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            />
+          </section>
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+              {error}
+            <button
+            type="button"
+            onClick={() => {
+                setLoading(true);
+                setError("");
+                setRetryKey((previous) => previous + 1);
+                }}
+            className="ml-3 font-semibold underline"
+            >
+            Retry
+            </button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="rounded-2xl bg-white py-20 text-center text-sm text-slate-400">
+              Loading analytics...
+            </div>
+          ) : !error ? (
+            <>
+              {/* Summary Cards */}
+              <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-sm text-slate-500">
+                    Total Spent
+                  </p>
+                  <h2 className="mt-3 text-2xl font-bold text-slate-900">
+                    {formatCurrency(totalSpent)}
+                  </h2>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {formatMonth(selectedMonth)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-sm text-slate-500">
+                    Transactions
+                  </p>
+                  <h2 className="mt-3 text-2xl font-bold text-slate-900">
+                    {summary?.transaction_count ?? 0}
+                  </h2>
+                  <p className="mt-2 text-xs text-slate-400">
+                    Transactions this month
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:col-span-2 xl:col-span-1">
+                  <p className="text-sm text-slate-500">
+                    Previous Month
+                  </p>
+                  <h2 className="mt-3 text-2xl font-bold text-slate-900">
+                    {formatCurrency(previousTotal)}
+                  </h2>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {summary?.percentage_change === null ||
+                    summary?.percentage_change === undefined
+                      ? "No previous spending to compare"
+                      : `${summary.percentage_change > 0 ? "+" : ""}${summary.percentage_change.toFixed(1)}% compared with previous month`}
+                  </p>
+                </div>
+              </section>
+
+              {/* Monthly Trend */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="mb-6">
+                  <h3 className="font-semibold text-slate-800">
+                    Spending Trend
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Your monthly spending over the last six months.
+                  </p>
+                </div>
+
+                <div className="h-64 w-full sm:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={trend.map((item) => ({
+                        ...item,
+                        amount: Number(item.total_spent),
+                        label: formatMonth(item.month),
+                      }))}
+                      margin={{
+                        top: 10,
+                        right: 5,
+                        left: -15,
+                        bottom: 5,
+                      }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                      />
+
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+
+                      <YAxis
+                        tickFormatter={(value) =>
+                          `₹${value >= 1000
+                            ? `${value / 1000}k`
+                            : value}`
+                        }
+                        tick={{ fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+
+                      <Tooltip
+                        formatter={(value) => [
+                          formatCurrency(Number(value)),
+                          "Spent",
+                        ]}
+                        contentStyle={{
+                          borderRadius: "12px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      />
+
+                      <Bar
+                        dataKey="amount"
+                        fill="#2563eb"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={48}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+
+              {/* Category Breakdown */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="mb-6">
+                  <h3 className="font-semibold text-slate-800">
+                    Category Breakdown
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Where your money went in {formatMonth(selectedMonth)}.
+                  </p>
+                </div>
+
+                {categories.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-400">
+                    No expenses recorded for this month.
+                  </p>
+                ) : (
+                  <div className="space-y-6">
+                    {categories.map((item) => {
+                      const amount = Number(item.total);
+                      const percentage =
+                        totalSpent > 0
+                          ? (amount / totalSpent) * 100
+                          : 0;
+
+                      return (
+                        <div key={item.category}>
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-slate-700">
+                                {item.category}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                {item.transaction_count} transactions
+                              </p>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <p className="text-sm font-semibold text-slate-800">
+                                {formatCurrency(amount)}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                {percentage.toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-blue-600 transition-all"
+                              style={{
+                                width: `${Math.min(percentage, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Spending Insight */}
+              {highestCategory && (
+                <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5 sm:p-6">
+                  <p className="text-sm font-semibold text-blue-800">
+                    Your biggest spending category
+                  </p>
+
+                  <h3 className="mt-2 text-xl font-bold text-slate-900">
+                    {highestCategory.category}
+                  </h3>
+
+                  <p className="mt-2 text-sm text-slate-600">
+                    You spent{" "}
+                    {formatCurrency(Number(highestCategory.total))}{" "}
+                    in this category during{" "}
+                    {formatMonth(selectedMonth)}.
+                  </p>
+                </section>
+              )}
+            </>
+          ) : null}
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/app/api/expenses/[expenseId]/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import {
+  getFinanceApiHeaders,
+  getFinanceApiUrl,
+} from "@/lib/finance-api";
+
+// export const dynamic = "force-dynamic";
+
+type RouteContext = {
+  params: Promise<{ expenseId: string }>;
+};
+
+function validateExpenseId(id: string): boolean {
+  const parsed = Number(id);
+  return Number.isSafeInteger(parsed) && parsed > 0;
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: RouteContext
+) {
+  try {
+    const { expenseId } = await params;
+
+    if (!validateExpenseId(expenseId)) {
+      return NextResponse.json(
+        { detail: "Invalid expense ID." },
+        { status: 400 }
+      );
+    }
+
+    const headers = await getFinanceApiHeaders();
+    const body = await request.json();
+
+    const response = await fetch(
+      `${getFinanceApiUrl()}/expenses/${expenseId}`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body),
+        cache: "no-store",
+      }
+    );
+
+    const data = await response.text();
+
+    return new NextResponse(data, {
+      status: response.status,
+      headers: {
+        "Content-Type":
+          response.headers.get("Content-Type") ?? "application/json",
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Authentication required."
+    ) {
+      return NextResponse.json(
+        { detail: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    console.error("PATCH /api/expenses failed:", error);
+
+    return NextResponse.json(
+      { detail: "Could not update expense." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: RouteContext
+) {
+  try {
+    const { expenseId } = await params;
+
+    if (!validateExpenseId(expenseId)) {
+      return NextResponse.json(
+        { detail: "Invalid expense ID." },
+        { status: 400 }
+      );
+    }
+
+    const headers = await getFinanceApiHeaders();
+
+    const response = await fetch(
+      `${getFinanceApiUrl()}/expenses/${expenseId}`,
+      {
+        method: "DELETE",
+        headers,
+        cache: "no-store",
+      }
+    );
+
+    const data = await response.text();
+
+    return new NextResponse(data, {
+      status: response.status,
+      headers: {
+        "Content-Type":
+          response.headers.get("Content-Type") ?? "application/json",
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Authentication required."
+    ) {
+      return NextResponse.json(
+        { detail: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    console.error("DELETE /api/expenses failed:", error);
+
+    return NextResponse.json(
+      { detail: "Could not delete expense." },
+      { status: 500 }
+    );
+  }
+}
+</file>
+
+<file path="frontend/app/api/expenses/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import {
+  getFinanceApiHeaders,
+  getFinanceApiUrl,
+} from "@/lib/finance-api";
+
+// export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  try {
+    const headers = await getFinanceApiHeaders();
+
+    const query = request.nextUrl.searchParams.toString();
+    const url = `${getFinanceApiUrl()}/expenses${query ? `?${query}` : ""}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+
+    const data = await response.text();
+
+    return new NextResponse(data, {
+      status: response.status,
+      headers: {
+        "Content-Type":
+          response.headers.get("Content-Type") ?? "application/json",
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Authentication required."
+    ) {
+      return NextResponse.json(
+        { detail: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    console.error("GET /api/expenses failed:", error);
+
+    return NextResponse.json(
+      { detail: "Could not retrieve expenses." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const headers = await getFinanceApiHeaders();
+    const body = await request.json();
+
+    const response = await fetch(`${getFinanceApiUrl()}/expenses`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const data = await response.text();
+
+    return new NextResponse(data, {
+      status: response.status,
+      headers: {
+        "Content-Type":
+          response.headers.get("Content-Type") ?? "application/json",
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Authentication required."
+    ) {
+      return NextResponse.json(
+        { detail: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    console.error("POST /api/expenses failed:", error);
+
+    return NextResponse.json(
+      { detail: "Could not create expense." },
+      { status: 500 }
+    );
+  }
+}
+</file>
+
+<file path="frontend/app/api/summary/[summaryType]/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import {
+  getFinanceApiHeaders,
+  getFinanceApiUrl,
+} from "@/lib/finance-api";
+
+const allowedTypes = ["monthly", "categories", "trend"];
+
+type RouteContext = {
+  params: Promise<{ summaryType: string }>;
+};
+
+export async function GET(
+  request: NextRequest,
+  { params }: RouteContext
+) {
+  const { summaryType } = await params;
+
+  if (!allowedTypes.includes(summaryType)) {
+    return NextResponse.json(
+      { detail: "Summary endpoint not found." },
+      { status: 404 }
+    );
+  }
+
+  try {
+    const headers = await getFinanceApiHeaders();
+
+    const query = request.nextUrl.searchParams.toString();
+
+    const url = `${getFinanceApiUrl()}/summary/${summaryType}${
+      query ? `?${query}` : ""
+    }`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+
+    const body = await response.text();
+
+    return new NextResponse(body, {
+      status: response.status,
+      headers: {
+        "Content-Type":
+          response.headers.get("content-type") ?? "application/json",
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Authentication required."
+    ) {
+      return NextResponse.json(
+        { detail: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    console.error("Summary API error:", error);
+
+    return NextResponse.json(
+      { detail: "Could not fetch financial summary." },
+      { status: 500 }
+    );
+  }
+}
+</file>
+
+<file path="frontend/app/dashboard/page.tsx">
+import { withAuth } from "@workos-inc/authkit-nextjs";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import Link from "next/link";
+import { connection } from "next/server";
+import ExpenseOverview from "./ExpenseOverview";
+
+const navigation = [
+  { label: "Overview", href: "/dashboard", icon: "◫" },
+  { label: "Transactions", href: "/transactions", icon: "⇄" },
+  { label: "Analytics", href: "/analytics", icon: "▥" },
+];
+
+async function DashboardContent() {
+    await connection();
+
+  const { user } = await withAuth();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const firstName = user.firstName || "there";
+
+  return (
+    <div className="min-h-screen bg-slate-100 md:flex">
+      {/* Sidebar */}
+      <aside className="flex w-full flex-col bg-[#101B35] text-white md:min-h-screen md:w-64 md:shrink-0">
+        {/* Brand */}
+        <div className="border-b border-white/10 px-7 py-6">
+          <h1 className="text-2xl font-bold tracking-wide">
+            Finora<span className="text-blue-400">.</span>
+          </h1>
+          <p className="mt-1 text-xs text-slate-400">
+            Personal Finance Manager
+          </p>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex gap-2 overflow-x-auto p-4 md:flex-1 md:flex-col">
+          <p className="hidden px-3 pb-2 text-xs font-semibold uppercase tracking-widest text-slate-500 md:block">
+            Workspace
+          </p>
+
+          {navigation.map((item, index) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={`flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
+                index === 0
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <span className="text-lg">{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* User section */}
+        <div className="hidden border-t border-white/10 p-5 md:block">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-semibold">
+              {firstName.charAt(0).toUpperCase()}
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">
+                {user.firstName || user.email}
+              </p>
+              <p className="truncate text-xs text-slate-400">
+                {user.email}
+              </p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="min-w-0 flex-1">
+        {/* Top bar */}
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-5 md:px-9">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">
+              Overview
+            </h2>
+            <p className="text-sm text-slate-500">
+              Your financial snapshot
+            </p>
+          </div>
+
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 font-semibold text-blue-700">
+            {firstName.charAt(0).toUpperCase()}
+          </div>
+        </header>
+
+        {/* Dashboard body */}
+        <div className="mx-auto max-w-7xl space-y-7 p-5 md:p-9">
+          {/* Welcome */}
+          <section>
+            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+              Good to see you, {firstName}!
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Heres whats happening with your finances.
+            </p>
+          </section>
+          {/* Recent transactions */}
+            <ExpenseOverview />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-100">
+          <div className="text-sm text-slate-500">
+            Loading your dashboard...
+          </div>
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
+  );
+}
+</file>
+
+<file path="frontend/app/login/page.tsx">
+import Link from "next/link";
+
+export default function LoginPage() {
+  return (
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#080d19] px-5 py-12 text-white">
+
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/20 blur-[120px]" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
+
+      <div className="relative w-full max-w-md">
+
+        <Link href="/" className="mb-10 flex items-center justify-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 font-bold text-xl">
+            F
+          </div>
+          <span className="text-xl font-semibold tracking-tight">
+            Finora
+          </span>
+        </Link>
+
+        <div className="rounded-2xl border border-white/10 bg-white/0.04 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
+
+          <div className="mb-8">
+            <p className="mb-3 text-sm font-medium text-blue-400">
+              YOUR MONEY, IN CONTROL
+            </p>
+
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Welcome back
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Sign in to understand your spending,
+              manage your finances and make smarter decisions.
+            </p>
+          </div>
+
+          <a
+            href="/sign-in"
+            className="flex w-full items-center justify-center rounded-xl bg-blue-500 px-5 py-3.5 font-semibold transition hover:bg-blue-400"
+          >
+            Continue with WorkOS
+          </a>
+
+          <div className="my-7 flex items-center gap-4">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs text-gray-500">SECURE AUTHENTICATION</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <p className="text-center text-sm text-gray-400">
+            Dont have an account?{" "}
+            <Link
+              href="/register"
+              className="font-semibold text-blue-400 hover:text-blue-300"
+            >
+              Create one
+            </Link>
+          </p>
+
+        </div>
+
+        <p className="mt-7 text-center text-xs text-gray-600">
+          Your financial data deserves privacy and security.
+        </p>
+
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="frontend/app/profile/page.tsx">
+import { withAuth } from "@workos-inc/authkit-nextjs";
+
+export default async function ProfilePage() {
+  const { user } = await withAuth();
+
+  if (!user) {
+    return <p>Not authenticated</p>;
+  }
+
+  return (
+    <main className="p-10">
+      <h1 className="text-2xl font-bold">Authenticated User</h1>
+      <pre className="mt-4 rounded-lg bg-gray-100 p-4 text-black">
+        {JSON.stringify(
+          {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+          },
+          null,
+          2
+        )}
+      </pre>
+    </main>
+  );
+}
+</file>
+
+<file path="frontend/app/register/page.tsx">
+import Link from "next/link";
+
+export default function RegisterPage() {
+  return (
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#080d19] px-5 py-12 text-white">
+
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/20 blur-[120px]" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
+
+      <div className="relative w-full max-w-md">
+
+        <Link href="/" className="mb-10 flex items-center justify-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 font-bold text-xl">
+            F
+          </div>
+          <span className="text-xl font-semibold tracking-tight">
+            Finora
+          </span>
+        </Link>
+
+        <div className="rounded-2xl border border-white/10 bg-white/0.04 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
+
+          <div className="mb-8">
+            <p className="mb-3 text-sm font-medium text-blue-400">
+              START YOUR FINANCIAL JOURNEY
+            </p>
+
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Create your account
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Take control of your money with intelligent
+              expense tracking and financial insights.
+            </p>
+          </div>
+
+          <a
+            href="/sign-up"
+            className="flex w-full items-center justify-center rounded-xl bg-blue-500 px-5 py-3.5 font-semibold transition hover:bg-blue-400"
+          >
+            Get started
+          </a>
+
+          <div className="my-7 flex items-center gap-4">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs text-gray-500">SECURE AUTHENTICATION</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <p className="text-center text-sm text-gray-400">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="font-semibold text-blue-400 hover:text-blue-300"
+            >
+              Sign in
+            </Link>
+          </p>
+
+        </div>
+
+        <p className="mt-7 text-center text-xs text-gray-600">
+          Your financial data deserves privacy and security.
+        </p>
+
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="frontend/app/sign-in/route.ts">
+import { getSignInUrl } from "@workos-inc/authkit-nextjs";
+import { redirect } from "next/navigation";
+
+export async function GET() {
+  const signInUrl = await getSignInUrl();
+  redirect(signInUrl);
+}
+</file>
+
+<file path="frontend/app/sign-up/route.ts">
+import { getSignUpUrl } from "@workos-inc/authkit-nextjs";
+import { redirect } from "next/navigation";
+
+export async function GET() {
+  const signUpUrl = await getSignUpUrl();
+  redirect(signUpUrl);
+}
+</file>
+
+<file path="frontend/app/globals.css">
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+</file>
+
+<file path="frontend/app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="frontend/app/page.tsx">
+import Image from "next/image";
+
+export default function Home() {
+  return (
+    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+        <Image
+          className="dark:invert h-5 w-[100px]"
+          src="/next.svg"
+          alt="Next.js logo"
+          width={100}
+          height={20}
+          priority
+        />
+        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
+          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
+            To get started, edit the{" "}
+            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
+              page.tsx
+            </code>{" "}
+            file.
+          </h1>
+          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+            Looking for a starting point or more instructions? Head over to{" "}
+            <a
+              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              className="font-medium text-zinc-950 dark:text-zinc-50"
+            >
+              Templates
+            </a>{" "}
+            or the{" "}
+            <a
+              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              className="font-medium text-zinc-950 dark:text-zinc-50"
+            >
+              Learning
+            </a>{" "}
+            center.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+          <a
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
+            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Image
+              className="dark:invert h-[14px] w-4"
+              src="/vercel.svg"
+              alt="Vercel logomark"
+              width={16}
+              height={14}
+            />
+            Deploy Now
+          </a>
+          <a
+            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
+            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Documentation
+          </a>
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/lib/finance-api.ts">
+import { withAuth } from "@workos-inc/authkit-nextjs";
+import { SignJWT } from "jose";
+
+const API_URL = process.env.FINANCE_API_URL;
+const API_SECRET = process.env.INTERNAL_API_SECRET;
+
+const API_AUDIENCE = "http://localhost:8001";
+
+export async function getFinanceApiHeaders() {
+  const { user } = await withAuth();
+
+  if (!user) {
+    throw new Error("Authentication required.");
+  }
+
+  if (!API_SECRET) {
+    throw new Error("Internal API secret is not configured.");
+  }
+
+  const secret = new TextEncoder().encode(API_SECRET);
+
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(user.id)
+    .setIssuer("finora-web")
+    .setAudience(API_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(secret);
+
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+export function getFinanceApiUrl() {
+  if (!API_URL) {
+    throw new Error("Finance API URL is not configured.");
+  }
+
+  return API_URL;
+}
+</file>
+
+<file path="frontend/AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="frontend/next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+  experimental: {
+    agentFeedback: true,
+  },
+  cacheComponents: true,
+  partialPrefetching: true,
+  turbopack: {
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
+  },
+};
+
+export default nextConfig;
+</file>
+
+<file path="frontend/proxy.ts">
+import { authkitProxy } from "@workos-inc/authkit-nextjs";
+
+export default authkitProxy();
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
+};
+</file>
+
+<file path="frontend/README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="frontend/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="services/__init__.py">
+
+</file>
+
+<file path="services/summary_service.py">
+from datetime import date
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from DB.models import Expense
+
+
+def get_monthly_summary(
+    db: Session,
+    user_id: int,
+    month: date,
+):
+    """
+    Returns spending total, transaction count,
+    and comparison with the previous month.
+    """
+
+    current_start = month.replace(day=1)
+
+    if current_start.month == 12:
+        next_start = current_start.replace(
+            year=current_start.year + 1,
+            month=1,
+        )
+    else:
+        next_start = current_start.replace(
+            month=current_start.month + 1,
+        )
+
+    previous_start = (
+        current_start.replace(day=1)
+        if current_start.month > 1
+        else current_start.replace(year=current_start.year - 1, month=12)
+    )
+
+    if current_start.month == 1:
+        previous_start = current_start.replace(
+            year=current_start.year - 1,
+            month=12,
+        )
+    else:
+        previous_start = current_start.replace(
+            month=current_start.month - 1,
+        )
+
+    current_total, current_count = (
+        db.query(
+            func.coalesce(func.sum(Expense.amount), 0),
+            func.count(Expense.id),
+        )
+        .filter(
+            Expense.user_id == user_id,
+            Expense.date >= current_start,
+            Expense.date < next_start,
+        )
+        .one()
+    )
+
+    previous_total = (
+        db.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == user_id,
+            Expense.date >= previous_start,
+            Expense.date < current_start,
+        )
+        .scalar()
+    )
+
+    percentage_change = None
+
+    if previous_total > 0:
+        percentage_change = (
+            (current_total - previous_total) / previous_total
+        ) * 100
+
+    return {
+        "month": current_start.strftime("%Y-%m"),
+        "total_spent": current_total,
+        "transaction_count": current_count,
+        "previous_month_total": previous_total,
+        "percentage_change": percentage_change,
+    }
+
+
+def get_category_summary(
+    db: Session,
+    user_id: int,
+    month: date,
+):
+    """Returns spending totals grouped by category."""
+
+    month_start = month.replace(day=1)
+
+    if month_start.month == 12:
+        next_month = month_start.replace(
+            year=month_start.year + 1,
+            month=1,
+        )
+    else:
+        next_month = month_start.replace(
+            month=month_start.month + 1,
+        )
+
+    results = (
+        db.query(
+            Expense.category,
+            func.sum(Expense.amount).label("total"),
+            func.count(Expense.id).label("transaction_count"),
+        )
+        .filter(
+            Expense.user_id == user_id,
+            Expense.date >= month_start,
+            Expense.date < next_month,
+        )
+        .group_by(Expense.category)
+        .order_by(func.sum(Expense.amount).desc())
+        .all()
+    )
+
+    return [
+        {
+            "category": category,
+            "total": total,
+            "transaction_count": count,
+        }
+        for category, total, count in results
+    ]
+
+
+def get_monthly_trend(
+    db: Session,
+    user_id: int,
+    months: int = 6,
+):
+    """Returns monthly spending totals for the last N months."""
+
+    today = date.today()
+    current_month = today.replace(day=1)
+
+    # Include the current month and the preceding months.
+    month_index = current_month.year * 12 + current_month.month - 1
+    first_index = month_index - months + 1
+
+    start_year, start_month_index = divmod(first_index, 12)
+    start_date = date(start_year, start_month_index + 1, 1)
+
+    results = (
+        db.query(
+            func.extract("year", Expense.date).label("year"),
+            func.extract("month", Expense.date).label("month"),
+            func.sum(Expense.amount).label("total"),
+            func.count(Expense.id).label("transaction_count"),
+        )
+        .filter(
+            Expense.user_id == user_id,
+            Expense.date >= start_date,
+            Expense.date < (
+                date(current_month.year + 1, 1, 1)
+                if current_month.month == 12
+                else current_month.replace(month=current_month.month + 1)
+            ),
+        )
+        .group_by(
+            func.extract("year", Expense.date),
+            func.extract("month", Expense.date),
+        )
+        .order_by(
+            func.extract("year", Expense.date),
+            func.extract("month", Expense.date),
+        )
+        .all()
+    )
+
+    # Convert database results into a lookup.
+    totals = {
+        (int(year), int(month)): {
+            "total": total,
+            "transaction_count": count,
+        }
+        for year, month, total, count in results
+    }
+
+    # Include months with zero spending.
+    trend = []
+
+    for offset in range(months):
+        index = first_index + offset
+        year, month_index = divmod(index, 12)
+        month_number = month_index + 1
+
+        data = totals.get((year, month_number), {})
+
+        trend.append({
+            "month": f"{year}-{month_number:02d}",
+            "total_spent": data.get("total", 0),
+            "transaction_count": data.get("transaction_count", 0),
+        })
+
+    return trend
+</file>
+
+<file path="alembic.ini">
+# A generic, single database configuration.
+
+[alembic]
+# path to migration scripts.
+# this is typically a path given in POSIX (e.g. forward slashes)
+# format, relative to the token %(here)s which refers to the location of this
+# ini file
+script_location = %(here)s/alembic
+
+# template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
+# Uncomment the line below if you want the files to be prepended with date and time
+# see https://alembic.sqlalchemy.org/en/latest/tutorial.html#editing-the-ini-file
+# for all available tokens
+# file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
+# Or organize into date-based subdirectories (requires recursive_version_locations = true)
+# file_template = %%(year)d/%%(month).2d/%%(day).2d_%%(hour).2d%%(minute).2d_%%(second).2d_%%(rev)s_%%(slug)s
+
+# sys.path path, will be prepended to sys.path if present.
+# defaults to the current working directory.  for multiple paths, the path separator
+# is defined by "path_separator" below.
+prepend_sys_path = .
+
+
+# timezone to use when rendering the date within the migration file
+# as well as the filename.
+# If specified, requires the tzdata library which can be installed by adding
+# `alembic[tz]` to the pip requirements.
+# string value is passed to ZoneInfo()
+# leave blank for localtime
+# timezone =
+
+# max length of characters to apply to the "slug" field
+# truncate_slug_length = 40
+
+# set to 'true' to run the environment during
+# the 'revision' command, regardless of autogenerate
+# revision_environment = false
+
+# set to 'true' to allow .pyc and .pyo files without
+# a source .py file to be detected as revisions in the
+# versions/ directory
+# sourceless = false
+
+# version location specification; This defaults
+# to <script_location>/versions.  When using multiple version
+# directories, initial revisions must be specified with --version-path.
+# The path separator used here should be the separator specified by "path_separator"
+# below.
+# version_locations = %(here)s/bar:%(here)s/bat:%(here)s/alembic/versions
+
+# path_separator; This indicates what character is used to split lists of file
+# paths, including version_locations and prepend_sys_path within configparser
+# files such as alembic.ini.
+# The default rendered in new alembic.ini files is "os", which uses os.pathsep
+# to provide os-dependent path splitting.
+#
+# Note that in order to support legacy alembic.ini files, this default does NOT
+# take place if path_separator is not present in alembic.ini.  If this
+# option is omitted entirely, fallback logic is as follows:
+#
+# 1. Parsing of the version_locations option falls back to using the legacy
+#    "version_path_separator" key, which if absent then falls back to the legacy
+#    behavior of splitting on spaces and/or commas.
+# 2. Parsing of the prepend_sys_path option falls back to the legacy
+#    behavior of splitting on spaces, commas, or colons.
+#
+# Valid values for path_separator are:
+#
+# path_separator = :
+# path_separator = ;
+# path_separator = space
+# path_separator = newline
+#
+# Use os.pathsep. Default configuration used for new projects.
+path_separator = os
+
+# set to 'true' to search source files recursively
+# in each "version_locations" directory
+# new in Alembic version 1.10
+# recursive_version_locations = false
+
+# the output encoding used when revision files
+# are written from script.py.mako
+# output_encoding = utf-8
+
+# database URL.  This is consumed by the user-maintained env.py script only.
+# other means of configuring database URLs may be customized within the env.py
+# file.
+sqlalchemy.url = driver://user:pass@localhost/dbname
+
+
+[post_write_hooks]
+# post_write_hooks defines scripts or Python functions that are run
+# on newly generated revision scripts.  See the documentation for further
+# detail and examples
+
+# format using "black" - use the console_scripts runner, against the "black" entrypoint
+# hooks = black
+# black.type = console_scripts
+# black.entrypoint = black
+# black.options = -l 79 REVISION_SCRIPT_FILENAME
+
+# lint with attempts to fix using "ruff" - use the module runner, against the "ruff" module
+# hooks = ruff
+# ruff.type = module
+# ruff.module = ruff
+# ruff.options = check --fix REVISION_SCRIPT_FILENAME
+
+# Alternatively, use the exec runner to execute a binary found on your PATH
+# hooks = ruff
+# ruff.type = exec
+# ruff.executable = ruff
+# ruff.options = check --fix REVISION_SCRIPT_FILENAME
+
+# Logging configuration.  This is also consumed by the user-maintained
+# env.py script only.
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARNING
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARNING
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+</file>
+
+<file path="README.md">
+
+</file>
+
+<file path="test_summary.py">
+from datetime import date
+
+from DB.get_db import get_db
+from services.summary_service import (
+    get_monthly_summary,
+    get_category_summary,
+    get_monthly_trend,
+)
+
+db = get_db()
+
+try:
+    user_id = 1  # Your local test user
+    month = date.today().replace(day=1)
+
+    print("\nMONTHLY SUMMARY")
+    print(get_monthly_summary(db, user_id, month))
+
+    print("\nCATEGORY SUMMARY")
+    print(get_category_summary(db, user_id, month))
+
+    print("\nMONTHLY TREND")
+    print(get_monthly_trend(db, user_id, months=6))
+
+finally:
+    db.close()
+</file>
+
+<file path="DB/db.py">
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL, echo=False)  
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+</file>
+
+<file path="frontend/app/callback/route.ts">
+import { handleAuth } from "@workos-inc/authkit-nextjs";
+
+export const GET = handleAuth({
+  returnPathname: "/",
+
+  onSuccess: async ({ user }) => {
+    const apiUrl = process.env.FINANCE_API_URL;
+    const secret = process.env.PROVISIONING_SECRET;
+
+    if (!apiUrl || !secret) {
+      throw new Error("Finance API configuration is missing.");
+    }
+
+    const name = [
+      user.firstName,
+      user.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const response = await fetch(
+      `${apiUrl}/internal/users/provision`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Provisioning-Secret": secret,
+        },
+        body: JSON.stringify({
+          workos_user_id: user.id,
+          email: user.email,
+          name: name || user.email,
+        }),
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("Account provisioning failed:", error);
+
+      throw new Error("Could not provision your finance account.");
+    }
+  },
+});
+</file>
+
+<file path="frontend/app/dashboard/ExpenseOverview.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+
+type Expense = {
+  id: number;
+  amount: string;
+  description: string;
+  date: string;
+  category: string;
+};
+
+type MonthlySummary = {
+  month: string;
+  total_spent: string;
+  transaction_count: number;
+  previous_month_total: string;
+  percentage_change: number | null;
+};
+
+type CategorySummary = {
+  category: string;
+  total: string;
+  transaction_count: number;
+};
+
+type TrendItem = {
+  month: string;
+  total_spent: string;
+  transaction_count: number;
+};
+
+type ExpenseListResponse = {
+  items: Expense[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+};
+
+export default function ExpenseOverview() {
+  const [monthlySummary, setMonthlySummary] =
+    useState<MonthlySummary | null>(null);
+
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [monthlyTrend, setMonthlyTrend] = useState<TrendItem[]>([]);
+  const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const now = new Date();
+
+  const currentMonth = `${now.getFullYear()}-${String(
+    now.getMonth() + 1
+  ).padStart(2, "0")}`;
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [
+          monthlyResponse,
+          categoriesResponse,
+          trendResponse,
+          expensesResponse,
+        ] = await Promise.all([
+          fetch(`/api/summary/monthly?month=${currentMonth}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/summary/categories?month=${currentMonth}`, {
+            cache: "no-store",
+          }),
+          fetch("/api/summary/trend?months=6", {
+            cache: "no-store",
+          }),
+          fetch("/api/expenses?limit=5", {
+            cache: "no-store",
+          }),
+        ]);
+
+        if (
+          !monthlyResponse.ok ||
+          !categoriesResponse.ok ||
+          !trendResponse.ok ||
+          !expensesResponse.ok
+        ) {
+          throw new Error("Could not load your financial data.");
+        }
+
+        const [monthlyData, categoryData, trendData, expensesData] =
+          await Promise.all([
+            monthlyResponse.json() as Promise<MonthlySummary>,
+            categoriesResponse.json() as Promise<CategorySummary[]>,
+            trendResponse.json() as Promise<TrendItem[]>,
+            expensesResponse.json() as Promise<ExpenseListResponse>,
+          ]);
+
+        setMonthlySummary(monthlyData);
+        setCategories(categoryData);
+        setMonthlyTrend(trendData);
+        setRecentExpenses(expensesData.items);
+        setTotalTransactions(expensesData.total);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboardData();
+  }, [currentMonth]);
+
+  const formatAmount = (amount: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(amount);
+
+  const formatMonth = (monthKey: string) => {
+    const [year, month] = monthKey.split("-").map(Number);
+
+    return new Date(year, month - 1, 1).toLocaleString("en-IN", {
+      month: "short",
+    });
+  };
+
+  const formatDate = (date: string) =>
+    new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+  const monthlyTotal = Number(monthlySummary?.total_spent ?? 0);
+  const monthlyTransactionCount =
+    monthlySummary?.transaction_count ?? 0;
+
+  const chartData = monthlyTrend.map((item) => ({
+    month: formatMonth(item.month),
+    total: Number(item.total_spent),
+  }));
+
+  const categoryBreakdown = categories
+    .map((item) => {
+      const amount = Number(item.total);
+
+      return {
+        category: item.category,
+        amount,
+        percentage:
+          monthlyTotal > 0 ? (amount / monthlyTotal) * 100 : 0,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 text-center text-sm text-slate-500">
+        Loading your financial data...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-white p-5 text-sm text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-0 space-y-5 sm:space-y-7">
+      {/* Summary Cards */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <p className="text-sm font-medium text-slate-500">
+            Monthly Expenses
+          </p>
+
+          <h3 className="mt-3 break-words text-2xl font-bold text-slate-800 sm:text-3xl">
+            {formatAmount(monthlyTotal)}
+          </h3>
+
+          <p className="mt-3 text-xs text-slate-400">
+            {monthlyTransactionCount} transactions this month
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <p className="text-sm font-medium text-slate-500">
+            All Transactions
+          </p>
+
+          <h3 className="mt-3 text-2xl font-bold text-slate-800 sm:text-3xl">
+            {totalTransactions}
+          </h3>
+
+          <p className="mt-3 text-xs text-slate-400">
+            Across all recorded expenses
+          </p>
+        </div>
+      </section>
+
+      {/* Monthly Spending Trend */}
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="mb-5 sm:mb-6">
+          <h3 className="font-semibold text-slate-800">
+            Spending Overview
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-400">
+            Your monthly spending over the last six months.
+          </p>
+        </div>
+
+        <div className="h-60 w-full min-w-0 sm:h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{ top: 10, right: 5, left: -15, bottom: 5 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#E2E8F0"
+              />
+
+              <XAxis
+                dataKey="month"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#64748B", fontSize: 11 }}
+                interval={0}
+              />
+
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#64748B", fontSize: 10 }}
+                tickFormatter={(value: number) =>
+                  value >= 1000
+                    ? `₹${(value / 1000).toFixed(1)}k`
+                    : `₹${value}`
+                }
+                width={55}
+              />
+
+              <Tooltip
+                formatter={(value) => formatAmount(Number(value ?? 0))}
+                cursor={{ fill: "#EFF6FF" }}
+                contentStyle={{
+                  borderRadius: "12px",
+                  border: "1px solid #E2E8F0",
+                  fontSize: "12px",
+                }}
+              />
+
+              <Bar
+                dataKey="total"
+                name="Expenses"
+                fill="#2563EB"
+                radius={[6, 6, 0, 0]}
+                maxBarSize={38}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Spending by Category */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div>
+          <h3 className="font-semibold text-slate-800">
+            Spending by Category
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-400">
+            Where your money goes this month.
+          </p>
+        </div>
+
+        {categoryBreakdown.length === 0 ? (
+          <div className="flex h-36 items-center justify-center sm:h-40">
+            <p className="text-center text-sm text-slate-400">
+              No spending data available for this month.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-5 sm:space-y-6">
+            {categoryBreakdown.map((item) => (
+              <div key={item.category}>
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <span className="min-w-0 break-words text-sm font-medium text-slate-700">
+                    {item.category}
+                  </span>
+
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatAmount(item.amount)}
+                    </p>
+
+                    <p className="text-xs text-slate-400">
+                      {item.percentage.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(item.percentage, 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Recent Transactions */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-800">
+              Recent Transactions
+            </h3>
+
+            <p className="mt-1 text-xs text-slate-400 sm:text-sm">
+              Your latest financial activity.
+            </p>
+          </div>
+
+          <span className="shrink-0 text-xs font-medium text-blue-600 sm:text-sm">
+            Latest 5
+          </span>
+        </div>
+
+        {recentExpenses.length === 0 ? (
+          <div className="flex h-36 items-center justify-center sm:h-40">
+            <p className="text-sm text-slate-400">
+              No expenses recorded yet.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 divide-y divide-slate-100">
+            {recentExpenses.map((expense) => (
+              <div
+                key={expense.id}
+                className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              >
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-medium text-slate-800">
+                    {expense.description}
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    {expense.category} · {formatDate(expense.date)}
+                  </p>
+                </div>
+
+                <p className="self-start text-sm font-semibold text-slate-800 sm:shrink-0">
+                  {formatAmount(Number(expense.amount))}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+</file>
+
+<file path="frontend/app/transactions/page.tsx">
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
+
+type Expense = {
+  id: number;
+  amount: string;
+  description: string;
+  date: string;
+  category: string;
+};
+
+type ExpenseListResponse = {
+  items: Expense[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+};
+
+const PAGE_SIZE = 10;
+
+const initialForm = {
+  amount: "",
+  description: "",
+  date: "",
+  category: "",
+};
+
+export default function TransactionsPage() {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [page, setPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [listError, setListError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [form, setForm] = useState(initialForm);
+
+  // Fetch the current page whenever page or refreshKey changes.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadExpenses() {
+      try {
+        const response = await fetch(
+          `/api/expenses?page=${page}&limit=${PAGE_SIZE}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Unable to load transactions.");
+        }
+
+        const data: ExpenseListResponse = await response.json();
+
+        if (!Array.isArray(data.items)) {
+          throw new Error("Invalid transaction response.");
+        }
+
+        setExpenses(data.items);
+        setTotalRecords(data.total);
+        setTotalPages(Math.max(1, data.total_pages));
+        setListError("");
+      } catch (err) {
+        if (controller.signal.aborted) return;
+
+        setListError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong."
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadExpenses();
+
+    return () => {
+      controller.abort();
+    };
+  }, [page, refreshKey]);
+  async function handleDelete(expense: Expense) {
+  const confirmed = window.confirm(
+    `Are you sure you want to delete "${expense.description}"? This action cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  setDeletingId(expense.id);
+  setListError("");
+  setSuccess("");
+
+  try {
+    const response = await fetch(
+      `/api/expenses/${expense.id}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || "Unable to delete transaction."
+      );
+    }
+
+    setSuccess("Transaction deleted successfully!");
+
+    // If this was the only record on the current page,
+    // move to the previous page.
+    if (expenses.length === 1 && page > 1) {
+      setLoading(true);
+      setPage((previous) => previous - 1);
+    } else {
+      setLoading(true);
+      setRefreshKey((previous) => previous + 1);
+    }
+  } catch (err) {
+    setListError(
+      err instanceof Error
+        ? err.message
+        : "Something went wrong."
+    );
+  } finally {
+    setDeletingId(null);
+  }
+}
+    function handleEdit(expense: Expense) {
+      setEditingId(expense.id);
+
+      setForm({
+        amount: expense.amount,
+        description: expense.description,
+        date: expense.date,
+        category: expense.category,
+      });
+
+      setFormError("");
+      setSuccess("");
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const { name, value } = e.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  }
+
+ async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  e.preventDefault();
+
+  setSubmitting(true);
+  setFormError("");
+  setSuccess("");
+
+  const isEditing = editingId !== null;
+
+  try {
+    const response = await fetch(
+      isEditing
+        ? `/api/expenses/${editingId}`
+        : "/api/expenses",
+      {
+        method: isEditing ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: Number(form.amount),
+          description: form.description.trim(),
+          expense_date: form.date,
+          category: form.category.trim(),
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+          `Could not ${isEditing ? "update" : "create"} the expense.`
+      );
+    }
+
+    setForm(initialForm);
+    setEditingId(null);
+
+    setSuccess(
+      isEditing
+        ? "Transaction updated successfully!"
+        : "Expense added successfully!"
+    );
+
+    setLoading(true);
+    setListError("");
+    setRefreshKey((previous) => previous + 1);
+  } catch (err) {
+    setFormError(
+      err instanceof Error
+        ? err.message
+        : "Something went wrong."
+    );
+  } finally {
+    setSubmitting(false);
+  }
+}
+
+  function changePage(nextPage: number) {
+    if (
+      nextPage < 1 ||
+      nextPage > totalPages ||
+      nextPage === page
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setListError("");
+    setPage(nextPage);
+  }
+
+  function retryLoading() {
+    setLoading(true);
+    setListError("");
+    setRefreshKey((previous) => previous + 1);
+  }
+
+  function formatAmount(amount: number) {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+
+  function formatDate(date: string) {
+    return new Date(`${date}T00:00:00`).toLocaleDateString(
+      "en-IN",
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }
+    );
+  }
+
+  const firstRecord =
+    totalRecords === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+
+  const lastRecord = Math.min(
+    page * PAGE_SIZE,
+    totalRecords
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-100 md:flex">
+
+      {/* Sidebar */}
+      <aside className="flex w-full flex-col bg-[#101B35] text-white md:min-h-screen md:w-64 md:shrink-0">
+
+        <div className="border-b border-white/10 px-6 py-5 md:px-7 md:py-6">
+          <Link href="/dashboard">
+            <h1 className="text-2xl font-bold tracking-wide">
+              Finora<span className="text-blue-400">.</span>
+            </h1>
+          </Link>
+
+          <p className="mt-1 text-xs text-slate-400">
+            Personal Finance Manager
+          </p>
+        </div>
+
+        <nav className="flex gap-2 overflow-x-auto p-3 md:flex-1 md:flex-col md:p-4">
+          <Link
+            href="/dashboard"
+            className="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <span className="text-lg">◫</span>
+            Overview
+          </Link>
+
+          <Link
+            href="/transactions"
+            className="flex shrink-0 items-center gap-3 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white"
+          >
+            <span className="text-lg">⇄</span>
+            Transactions
+          </Link>
+
+          <Link
+            href="/analytics"
+            className="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <span className="text-lg">▥</span>
+            Analytics
+          </Link>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="min-w-0 flex-1">
+
+        {/* Header */}
+        <header className="border-b border-slate-200 bg-white px-5 py-5 md:px-9">
+          <h2 className="text-lg font-semibold text-slate-800">
+            Transactions
+          </h2>
+
+          <p className="text-sm text-slate-500">
+            Manage and track your expenses.
+          </p>
+        </header>
+
+        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 md:space-y-7 md:p-9">
+
+          {/* Page Heading */}
+          <section>
+            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+              Your Transactions
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Keep track of where your money goes.
+            </p>
+          </section>
+
+          {/* Add Expense Form */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+            <div>
+              <h3 className="font-semibold text-slate-800">
+                {editingId !== null ? "Edit Transaction" : "Add New Expense"}
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-400">
+                {editingId !== null
+                  ? "Update the details of your transaction."
+                  : "Record a new financial transaction."}
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleSubmit}
+              className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2"
+            >
+              <div>
+                <label
+                  htmlFor="description"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Description
+                </label>
+
+                <input
+                  id="description"
+                  type="text"
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  placeholder="e.g. Grocery shopping"
+                  maxLength={255}
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="amount"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Amount (₹)
+                </label>
+
+                <input
+                  id="amount"
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={handleChange}
+                  placeholder="e.g. 500"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="category"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Category
+                </label>
+
+                <input
+                  id="category"
+                  type="text"
+                  name="category"
+                  value={form.category}
+                  onChange={handleChange}
+                  placeholder="e.g. Food, Travel, Shopping"
+                  maxLength={100}
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="date"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Date
+                </label>
+
+                <input
+                  id="date"
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {editingId !== null
+                    ? submitting
+                      ? "Saving Changes..."
+                      : "Save Changes"
+                    : submitting
+                      ? "Adding Expense..."
+                      : "+ Add Expense"}
+                </button>
+
+                {editingId !== null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setForm(initialForm);
+                      setFormError("");
+                    }}
+                    className="ml-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+
+            {formError && (
+              <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                {formError}
+              </p>
+            )}
+
+            {success && (
+              <p className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+                {success}
+              </p>
+            )}
+          </section>
+
+          {/* Transactions List */}
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-800">
+                  All Transactions
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Your recorded expenses.
+                </p>
+              </div>
+
+              <span className="w-fit rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600">
+                {totalRecords} Records
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="py-16 text-center text-sm text-slate-400">
+                Loading transactions...
+              </div>
+            ) : listError ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-red-600">
+                  {listError}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={retryLoading}
+                  className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : expenses.length === 0 ? (
+              <div className="py-16 text-center">
+                <p className="text-sm text-slate-500">
+                  No transactions yet.
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Add your first expense using the form above.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table */}
+                <div className="mt-5 hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[600px] text-left">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400">
+                        <th className="px-3 py-4 font-medium">
+                          Description
+                        </th>
+
+                        <th className="px-3 py-4 font-medium">
+                          Category
+                        </th>
+
+                        <th className="px-3 py-4 font-medium">
+                          Date
+                        </th>
+
+                        <th className="px-3 py-4 text-right font-medium">
+                          Amount
+                        </th>
+                        <th className="px-3 py-4 text-right font-medium">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {expenses.map((expense) => (
+                        <tr
+                          key={expense.id}
+                          className="transition hover:bg-slate-50"
+                        >
+                          <td className="max-w-xs wrap-break-word px-3 py-4 text-sm font-medium text-slate-800">
+                            {expense.description}
+                          </td>
+
+                          <td className="px-3 py-4">
+                            <span className="inline-block max-w-48 truncate rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+                              {expense.category}
+                            </span>
+                          </td>
+
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                            {formatDate(expense.date)}
+                          </td>
+
+                          <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-semibold text-slate-800">
+                            {formatAmount(Number(expense.amount))}
+                          </td>
+                          <td className="px-3 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(expense)}
+                            disabled={deletingId === expense.id}
+                            className="rounded-lg px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deletingId === expense.id ? "Deleting..." : "Delete"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(expense)}
+                            disabled={deletingId !== null}
+                            className="rounded-lg px-3 py-2 text-xs font-medium text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Transaction Cards */}
+                <div className="mt-5 divide-y divide-slate-100 md:hidden">
+                  {expenses.map((expense) => (
+                    <div
+                      key={expense.id}
+                      className="flex items-start justify-between gap-3 py-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold text-slate-800">
+                          {expense.description}
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="max-w-full truncate rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                            {expense.category}
+                          </span>
+
+                          <span className="text-xs text-slate-400">
+                            {formatDate(expense.date)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="shrink-0 text-right text-sm font-semibold text-slate-800">
+                        {formatAmount(Number(expense.amount))}
+                      </p>
+                      <div className="mt-2 flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(expense)}
+                          disabled={deletingId !== null}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(expense)}
+                          disabled={deletingId === expense.id}
+                          className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                        >
+                          {deletingId === expense.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                <div className="mt-5 flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+
+                  <p className="text-center text-xs text-slate-500 sm:text-left sm:text-sm">
+                    Showing {firstRecord}–{lastRecord} of {totalRecords}
+                  </p>
+
+                  <div className="flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => changePage(page - 1)}
+                      disabled={page <= 1}
+                      className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Previous
+                    </button>
+
+                    <span className="whitespace-nowrap text-sm font-medium text-slate-600">
+                      {page} / {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => changePage(page + 1)}
+                      disabled={page >= totalPages}
+                      className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="services/auth_service.py">
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+
+from DB.models import User
+
+
+def provision_workos_user(
+    db: Session,
+    workos_user_id: str,
+    email: str,
+    name: str,
+):
+    email = email.strip().lower()
+    name = name.strip() or email
+
+    # Check whether this WorkOS identity already exists.
+    user = (
+        db.query(User)
+        .filter(User.workos_user_id == workos_user_id)
+        .first()
+    )
+
+    if user:
+        # Never allow an email already linked to another identity.
+        email_owner = (
+            db.query(User)
+            .filter(User.email == email, User.id != user.id)
+            .first()
+        )
+
+        if email_owner:
+            raise ValueError("This email is linked to another account.")
+
+        user.email = email
+        user.name = name
+        db.commit()
+        db.refresh(user)
+
+        return user, False
+
+    # Prevent silently linking an existing account by email.
+    email_owner = (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
+    )
+
+    if email_owner:
+        raise ValueError("This email is already linked to another account.")
+
+    user = User(
+        workos_user_id=workos_user_id,
+        email=email,
+        name=name,
+    )
+
+    db.add(user)
+
+    try:
+        db.commit()
+        db.refresh(user)
+        return user, True
+
+    except IntegrityError:
+        db.rollback()
+
+        # Handle a concurrent request for the same WorkOS identity.
+        user = (
+            db.query(User)
+            .filter(User.workos_user_id == workos_user_id)
+            .first()
+        )
+
+        if user:
+            return user, False
+
+        raise ValueError("Could not create the finance account.")
+</file>
+
+<file path="services/expense_service.py">
+from sqlalchemy.orm import Session
+from DB.models import Expense
+from datetime import date
+from decimal import Decimal
+
+
+def create_expense(
+    db: Session,
+    user_id: int,
+    amount: Decimal,
+    description: str,
+    expense_date: date,
+    category: str,
+):
+    new_expense = Expense(
+        amount=amount,
+        description=description,
+        date=expense_date,
+        category=category,
+        user_id=user_id,
+    )
+
+    db.add(new_expense)
+    db.commit()
+    db.refresh(new_expense)
+
+    return new_expense
+
+
+def get_expenses(
+    db: Session,
+    user_id: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    category: str | None = None,
+):
+    query = db.query(Expense).filter(
+        Expense.user_id == user_id
+    )
+
+    if start_date:
+        query = query.filter(Expense.date >= start_date)
+
+    if end_date:
+        query = query.filter(Expense.date <= end_date)
+
+    if category:
+        query = query.filter(Expense.category == category)
+
+    return query.order_by(Expense.date.desc()).all()
+
+
+def get_expenses_paginated(
+    db: Session,
+    user_id: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    category: str | None = None,
+    page: int = 1,
+    limit: int = 10,
+):
+    query = db.query(Expense).filter(
+        Expense.user_id == user_id
+    )
+
+    if start_date:
+        query = query.filter(Expense.date >= start_date)
+
+    if end_date:
+        query = query.filter(Expense.date <= end_date)
+
+    if category:
+        query = query.filter(Expense.category == category)
+
+    # Count matching records before applying pagination.
+    total = query.count()
+
+    # Fetch only the requested page.
+    offset = (page - 1) * limit
+
+    items = (
+        query
+        .order_by(Expense.date.desc(), Expense.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    total_pages = (total + limit - 1) // limit
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
+
+
+def update_expense(
+    db: Session,
+    user_id: int,
+    expense_id: int,
+    amount: Decimal | None = None,
+    description: str | None = None,
+    expense_date: date | None = None,
+    category: str | None = None,
+):
+    expense = (
+        db.query(Expense)
+        .filter(
+            Expense.id == expense_id,
+            Expense.user_id == user_id,
+        )
+        .first()
+    )
+
+    if expense is None:
+        return None
+
+    if amount is not None:
+        expense.amount = amount
+
+    if description is not None:
+        expense.description = description
+
+    if expense_date is not None:
+        expense.date = expense_date
+
+    if category is not None:
+        expense.category = category
+
+    db.commit()
+    db.refresh(expense)
+
+    return expense
+
+
+
+def delete_expense(
+    db: Session,
+    user_id: int,
+    expense_id: int,
+):
+    expense = (
+        db.query(Expense)
+        .filter(
+            Expense.id == expense_id,
+            Expense.user_id == user_id,
+        )
+        .first()
+    )
+
+    if expense is None:
+        return False
+
+    db.delete(expense)
+    db.commit()
+
+    return True
+</file>
+
+<file path="src/test.py">
+# from DB.get_db import get_db
+# from DB.models import Expense
+# from fastmcp import FastMCP
+
+# mcp = FastMCP(name="Expense-Tracker")
+
+# @mcp.tool()
+# def add_expenses(amount: float, description: str, date: str, category: str) -> dict:
+#     db = get_db()
+#     try:
+#         new_expense = Expense(
+#             amount=amount,
+#             description=description,
+#             date=date,
+#             category=category
+#         )
+#         db.add(new_expense)
+#         db.commit()
+#         db.refresh(new_expense)
+#         return {"id": new_expense.id, "message": "Expense added successfully"}
+#     finally:
+#         db.close()
+
+# @mcp.tool()
+# def get_expenses() -> list:
+#     db = get_db()
+#     try:
+#         expenses = db.query(Expense).all()
+#         return [
+#             {
+#                 "id": exp.id,
+#                 "amount": exp.amount,
+#                 "description": exp.description,
+#                 "date": str(exp.date),
+#                 "category": exp.category
+#             }
+#             for exp in expenses
+#         ]
+#     finally:
+#         db.close()
+
+# @mcp.tool()
+# def update_expense(amount: float, description: str, date: str, category: str, id: int) -> dict:
+#     db = get_db()
+#     try:
+#         expense = db.query(Expense).filter(Expense.id == id).first()
+#         if not expense:
+#             return {"message": "Expense not found"}
+
+#         # Update fields
+#         expense.amount = amount
+#         expense.description = description
+#         expense.date = date
+#         expense.category = category
+
+#         db.commit()
+#         db.refresh(expense)
+#         return {
+#             "message": "Expense updated successfully",
+#             "updated_expense": {
+#                 "id": expense.id,
+#                 "amount": expense.amount,
+#                 "description": expense.description,
+#                 "date": str(expense.date),
+#                 "category": expense.category
+#             }
+#         }
+#     finally:
+#         db.close()
+
+# # ------------------ DELETE ------------------
+# @mcp.tool()
+# def delete_expense(id: int) -> dict:
+#     db = get_db()
+#     try:
+#         expense = db.query(Expense).filter(Expense.id == id).first()
+#         if not expense:
+#             return {"message": "Expense not found"}
+        
+#         db.delete(expense)
+#         db.commit()
+#         return {"message": f"Expense with ID {id} deleted successfully"}
+#     finally:
+#         db.close()
+
+
+# if __name__ == "__main__":
+#     mcp.run()
+</file>
+
+<file path="frontend/package.json">
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@workos-inc/authkit-nextjs": "^4.6.2",
+    "@workos-inc/node": "^12.1.0",
+    "jose": "^6.2.15",
+    "next": "16.4.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="api.py">
+import os
+import hmac
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Generator
+
+import jwt
+from dotenv import load_dotenv
+from fastapi import (
+    FastAPI,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    status,
+)
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from DB.get_db import get_db
+from DB.models import User
+from services.auth_service import provision_workos_user
+from services.expense_service import (
+    create_expense,
+    get_expenses as fetch_expenses,
+    get_expenses_paginated as fetch_paginated_expenses,
+    update_expense as modify_expense,
+    delete_expense as remove_expense,
+)
+
+
+from datetime import datetime
+
+from services.summary_service import (
+    get_monthly_summary,
+    get_category_summary,
+    get_monthly_trend,
+)
+
+load_dotenv()
+
+app = FastAPI(title="Personal Finance API")
+
+# Internal JWT configuration
+INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET")
+INTERNAL_API_ISSUER = "finora-web"
+INTERNAL_API_AUDIENCE = os.getenv(
+    "INTERNAL_API_AUDIENCE",
+    "http://localhost:8001",
+)
+
+security = HTTPBearer(auto_error=False)
+
+
+# --------------------------------------------------
+# DATABASE DEPENDENCY
+# --------------------------------------------------
+
+def get_db_session() -> Generator[Session, None, None]:
+    db = get_db()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# --------------------------------------------------
+# AUTHENTICATION DEPENDENCY
+# --------------------------------------------------
+
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db_session),
+) -> int:
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+
+    if not INTERNAL_API_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API authentication is not configured.",
+        )
+
+    try:
+        claims = jwt.decode(
+            credentials.credentials,
+            INTERNAL_API_SECRET,
+            algorithms=["HS256"],
+            issuer=INTERNAL_API_ISSUER,
+            audience=INTERNAL_API_AUDIENCE,
+            options={
+                "require": ["exp", "iat", "iss", "aud", "sub"]
+            },
+        )
+
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token.",
+        )
+
+    workos_user_id = claims.get("sub")
+
+    if not isinstance(workos_user_id, str) or not workos_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user identity.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.workos_user_id == workos_user_id)
+        .first()
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Finance account not found.",
+        )
+
+    return user.id
+
+
+# --------------------------------------------------
+# REQUEST SCHEMAS
+# --------------------------------------------------
+
+class CreateExpenseRequest(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    description: str = Field(min_length=1, max_length=500)
+    expense_date: date
+    category: str = Field(min_length=1, max_length=100)
+
+
+class UpdateExpenseRequest(BaseModel):
+    amount: Decimal | None = Field(
+        default=None, gt=0, max_digits=12, decimal_places=2
+    )
+    description: str | None = Field(
+        default=None, min_length=1, max_length=500
+    )
+    expense_date: date | None = None
+    category: str | None = Field(
+        default=None, min_length=1, max_length=100
+    )
+
+
+# --------------------------------------------------
+# RESPONSE SERIALIZATION
+# --------------------------------------------------
+
+def serialize_expense(expense) -> dict:
+    return {
+        "id": expense.id,
+        "amount": str(expense.amount),
+        "description": expense.description,
+        "date": expense.date.isoformat(),
+        "category": expense.category,
+    }
+
+
+# --------------------------------------------------
+# USER PROVISIONING
+# --------------------------------------------------
+
+class ProvisionUserRequest(BaseModel):
+    workos_user_id: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=320)
+    name: str = Field(min_length=1, max_length=255)
+
+
+@app.post("/internal/users/provision")
+def provision_user(
+    payload: ProvisionUserRequest,
+    x_provisioning_secret: str = Header(
+        alias="X-Provisioning-Secret"
+    ),
+    db: Session = Depends(get_db_session),
+):
+    expected_secret = os.getenv("PROVISIONING_SECRET")
+
+    if not expected_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Provisioning is not configured.",
+        )
+
+    if not hmac.compare_digest(
+        x_provisioning_secret,
+        expected_secret,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized.",
+        )
+
+    try:
+        user, created = provision_workos_user(
+            db=db,
+            workos_user_id=payload.workos_user_id,
+            email=payload.email,
+            name=payload.name,
+        )
+
+        return {
+            "message": (
+                "Finance account created."
+                if created
+                else "Finance account already exists."
+            ),
+            "user_id": user.id,
+            "created": created,
+        }
+
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+
+
+# --------------------------------------------------
+# CREATE EXPENSE
+# --------------------------------------------------
+
+@app.post("/expenses", status_code=status.HTTP_201_CREATED)
+def add_expense(
+    payload: CreateExpenseRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    expense = create_expense(
+        db=db,
+        user_id=user_id,
+        amount=payload.amount,
+        description=payload.description,
+        expense_date=payload.expense_date,
+        category=payload.category,
+    )
+
+    return {
+        "message": "Expense created successfully.",
+        "expense": serialize_expense(expense),
+    }
+
+
+# --------------------------------------------------
+# GET EXPENSES
+# --------------------------------------------------
+
+
+@app.get("/expenses")
+def get_user_expenses(
+    start_date: date | None = None,
+    end_date: date | None = None,
+    category: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=422,
+            detail="Start date cannot be after end date.",
+        )
+
+    result = fetch_paginated_expenses(
+        db=db,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        category=category,
+        page=page,
+        limit=limit,
+    )
+
+    return {
+        "items": [
+            serialize_expense(expense)
+            for expense in result["items"]
+        ],
+        "total": result["total"],
+        "page": result["page"],
+        "limit": result["limit"],
+        "total_pages": result["total_pages"],
+    }
+
+from datetime import datetime
+
+
+@app.get("/summary/monthly")
+def monthly_summary(
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    try:
+        month_date = datetime.strptime(month, "%Y-%m").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid month. Use YYYY-MM format.",
+        )
+
+    result = get_monthly_summary(db, user_id, month_date)
+
+    return {
+        "month": result["month"],
+        "total_spent": str(result["total_spent"]),
+        "transaction_count": result["transaction_count"],
+        "previous_month_total": str(result["previous_month_total"]),
+        "percentage_change": (
+            float(result["percentage_change"])
+            if result["percentage_change"] is not None
+            else None
+        ),
+    }
+
+
+@app.get("/summary/categories")
+def category_summary(
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    try:
+        month_date = datetime.strptime(month, "%Y-%m").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid month. Use YYYY-MM format.",
+        )
+
+    results = get_category_summary(db, user_id, month_date)
+
+    return [
+        {
+            "category": item["category"],
+            "total": str(item["total"]),
+            "transaction_count": item["transaction_count"],
+        }
+        for item in results
+    ]
+
+
+@app.get("/summary/trend")
+def monthly_trend(
+    months: int = Query(default=6, ge=1, le=24),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+    results = get_monthly_trend(db, user_id, months)
+
+    return [
+        {
+            "month": item["month"],
+            "total_spent": str(item["total_spent"]),
+            "transaction_count": item["transaction_count"],
+        }
+        for item in results
+    ]
+
+# --------------------------------------------------
+# UPDATE EXPENSE
+# --------------------------------------------------
+
+@app.patch("/expenses/{expense_id}")
+def update_user_expense(
+    expense_id: int,
+    payload: UpdateExpenseRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    updates = payload.model_dump(exclude_unset=True)
+
+    if not updates or all(value is None for value in updates.values()):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one field to update.",
+        )
+
+    expense = modify_expense(
+        db=db,
+        user_id=user_id,
+        expense_id=expense_id,
+        **updates,
+    )
+
+    if expense is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Expense not found.",
+        )
+
+    return {
+        "message": "Expense updated successfully.",
+        "expense": serialize_expense(expense),
+    }
+
+
+# --------------------------------------------------
+# DELETE EXPENSE
+# --------------------------------------------------
+
+@app.delete("/expenses/{expense_id}")
+def delete_user_expense(
+    expense_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db_session),
+):
+
+    deleted = remove_expense(
+        db=db,
+        user_id=user_id,
+        expense_id=expense_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Expense not found.",
+        )
+
+    return {"message": "Expense deleted successfully."}
+</file>
+
+<file path="main.py">
+import os
+from datetime import date
+from decimal import Decimal
+
+from dotenv import load_dotenv
+from fastmcp import FastMCP
+from fastmcp.server.auth.providers.jwt import JWTVerifier
+from fastmcp.server.auth.providers.workos import AuthKitProvider
+from fastmcp.server.dependencies import get_access_token
+
+from DB.get_db import get_db
+from DB.models import User
+
+from services.expense_service import (
+    create_expense,
+    get_expenses as fetch_expenses,
+    update_expense as modify_expense,
+    delete_expense as remove_expense,
+)
+
+load_dotenv()
+
+# WorkOS configuration
+AUTHKIT_DOMAIN = os.getenv(
+    "AUTHKIT_DOMAIN",
+    "https://inspiring-smile-02-staging.authkit.app"
+)
+
+# Local default for development.
+# Replace this with your Render service URL after deployment.
+MCP_BASE_URL = os.getenv(
+    "MCP_BASE_URL",
+    "http://localhost:8000"
+).rstrip("/")
+
+MCP_RESOURCE_URL = f"{MCP_BASE_URL}/mcp"
+
+# Verify WorkOS-issued JWTs.
+token_verifier = JWTVerifier(
+    jwks_uri=f"{AUTHKIT_DOMAIN}/oauth2/jwks",
+    issuer=AUTHKIT_DOMAIN,
+    audience=MCP_RESOURCE_URL,
+    algorithm="RS256",
+)
+
+# Connect AuthKit to FastMCP.
+auth_provider = AuthKitProvider(
+    authkit_domain=AUTHKIT_DOMAIN,
+    base_url=MCP_BASE_URL,
+    token_verifier=token_verifier,
+)
+
+mcp = FastMCP(
+    name="Personal Finance Manager",
+    auth=auth_provider,
+)
+
+
+def get_authenticated_user_id(db) -> int:
+    """
+    Resolve the verified WorkOS identity to our local database user.
+
+    Never accept a user ID supplied by an MCP client or an LLM.
+    """
+
+    access_token = get_access_token()
+
+    if access_token is None:
+        raise PermissionError("Authentication required.")
+
+    workos_user_id = access_token.claims.get("sub")
+
+    if not isinstance(workos_user_id, str) or not workos_user_id.strip():
+        raise PermissionError("Invalid authenticated identity.")
+
+    user = (
+        db.query(User)
+        .filter(User.workos_user_id == workos_user_id)
+        .first()
+    )
+
+    if user is None:
+        raise PermissionError(
+            "Your WorkOS account is not linked to a finance account."
+        )
+
+    return user.id
+
+
+def serialize_expense(expense) -> dict:
+    return {
+        "id": expense.id,
+        "amount": str(expense.amount),
+        "description": expense.description,
+        "date": expense.date.isoformat(),
+        "category": expense.category,
+    }
+
+
+@mcp.tool()
+def add_expenses(
+    amount: Decimal,
+    description: str,
+    expense_date: date,
+    category: str,
+) -> dict:
+    """Add an expense to the authenticated user's account."""
+
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        expense = create_expense(
+            db=db,
+            user_id=user_id,
+            amount=amount,
+            description=description,
+            expense_date=expense_date,
+            category=category,
+        )
+
+        return {
+            "message": "Expense added successfully.",
+            "expense": serialize_expense(expense),
+        }
+
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_expenses(
+    start_date: date | None = None,
+    end_date: date | None = None,
+    category: str | None = None,
+) -> list:
+    """Retrieve expenses belonging to the authenticated user."""
+
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        expenses = fetch_expenses(
+            db=db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+        )
+
+        return [serialize_expense(expense) for expense in expenses]
+
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def update_expense(
+    expense_id: int,
+    amount: Decimal | None = None,
+    description: str | None = None,
+    expense_date: date | None = None,
+    category: str | None = None,
+) -> dict:
+    """Update an expense belonging to the authenticated user."""
+
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        expense = modify_expense(
+            db=db,
+            user_id=user_id,
+            expense_id=expense_id,
+            amount=amount,
+            description=description,
+            expense_date=expense_date,
+            category=category,
+        )
+
+        if expense is None:
+            return {"message": "Expense not found."}
+
+        return {
+            "message": "Expense updated successfully.",
+            "expense": serialize_expense(expense),
+        }
+
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def delete_expense(expense_id: int) -> dict:
+    """Delete an expense belonging to the authenticated user."""
+
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        deleted = remove_expense(
+            db=db,
+            user_id=user_id,
+            expense_id=expense_id,
+        )
+
+        if not deleted:
+            return {"message": "Expense not found."}
+
+        return {"message": "Expense deleted successfully."}
+
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=port,
+        path="/mcp",
+    )
+
+
+
+
+# fetch("/api/expenses", {
+#   method: "POST",
+#   headers: {
+#     "Content-Type": "application/json"
+#   },
+#   body: JSON.stringify({
+#     amount: 250,
+#     description: "Dinner",
+#     expense_date: "2026-11-03",
+#     category: "Food"
+#   })
+# })
+# .then(res => res.json())
+# .then(console.log);
+</file>
+
+<file path="pyproject.toml">
+[project]
+name = "my-mcp"
+version = "0.1.0"
+description = "Expense Tracker MCP Server"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.1",
+    "argon2-cffi>=25.1.0",
+    "fastapi>=0.118.0",
+    "fastmcp==2.12.4",
+    "psycopg[binary]>=3.2",
+    "pyjwt[crypto]>=2.15.1",
+    "sqlalchemy>=2.0.43",
+]
+</file>
+
+<file path="DB/models.py">
+from DB.db import Base
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String
+from sqlalchemy.orm import relationship
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+
+    workos_user_id = Column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False
+    )
+
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+
+    expenses = relationship("Expense", back_populates="user")
+
+
+class Expense(Base):
+  __tablename__ = "expenses"
+
+  id = Column(Integer, primary_key=True)
+  amount = Column(Numeric(12, 2), nullable=False)
+  description = Column(String, nullable=False)
+  date = Column(Date, nullable=False)
+  category = Column(String, nullable=False)
+
+  user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+  user = relationship("User", back_populates="expenses")
+# Base.metadata.create_all(bind=engine)
+</file>
+
+</files>
