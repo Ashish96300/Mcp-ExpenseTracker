@@ -9,3 +9,5 @@ wheels/
 # Virtual environments
 .env
 .venv
+.neon
+node_modules/
