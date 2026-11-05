@@ -18,6 +18,11 @@ from services.expense_service import (
     update_expense as modify_expense,
     delete_expense as remove_expense,
 )
+from services.summary_service import (
+    get_monthly_summary as fetch_monthly_summary,
+    get_category_summary as fetch_category_summary,
+    get_monthly_trend as fetch_monthly_trend,
+)
 
 load_dotenv()
 
@@ -34,7 +39,11 @@ MCP_BASE_URL = os.getenv(
     "http://localhost:8000"
 ).rstrip("/")
 
+print(MCP_BASE_URL)
+
 MCP_RESOURCE_URL = f"{MCP_BASE_URL}/mcp"
+
+print(MCP_RESOURCE_URL)
 
 # Verify WorkOS-issued JWTs.
 token_verifier = JWTVerifier(
@@ -73,7 +82,8 @@ def get_authenticated_user_id(db) -> int:
 
     if not isinstance(workos_user_id, str) or not workos_user_id.strip():
         raise PermissionError("Invalid authenticated identity.")
-
+    print(f"[MCP AUTH] WorkOS subject={workos_user_id!r}")
+    
     user = (
         db.query(User)
         .filter(User.workos_user_id == workos_user_id)
@@ -84,9 +94,13 @@ def get_authenticated_user_id(db) -> int:
         raise PermissionError(
             "Your WorkOS account is not linked to a finance account."
         )
-
+    print(f"[MCP AUTH] Resolved local user_id={user.id}")
+    print(
+        f"[MCP AUTH] Local user_id={user.id}, "
+        f"subject_matches_db={user.workos_user_id == workos_user_id}"
+    )
     return user.id
-
+    
 
 def serialize_expense(expense) -> dict:
     return {
@@ -213,6 +227,108 @@ def delete_expense(expense_id: int) -> dict:
             return {"message": "Expense not found."}
 
         return {"message": "Expense deleted successfully."}
+
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_monthly_summary(month: date) -> dict:
+    """
+    Get the authenticated user's monthly spending summary,
+    including comparison with the previous month.
+
+    Provide any date within the requested month.
+    """
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        result = fetch_monthly_summary(
+            db=db,
+            user_id=user_id,
+            month=month,
+        )
+
+        return {
+            "month": result["month"],
+            "total_spent": str(result["total_spent"]),
+            "transaction_count": result["transaction_count"],
+            "previous_month_total": str(
+                result["previous_month_total"]
+            ),
+            "percentage_change": (
+                str(result["percentage_change"])
+                if result["percentage_change"] is not None
+                else None
+            ),
+        }
+
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_category_summary(month: date) -> list:
+    """
+    Get the authenticated user's spending breakdown
+    by category for a particular month.
+    """
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        results = fetch_category_summary(
+            db=db,
+            user_id=user_id,
+            month=month,
+        )
+
+        return [
+            {
+                "category": item["category"],
+                "total": str(item["total"]),
+                "transaction_count": item["transaction_count"],
+            }
+            for item in results
+        ]
+
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_monthly_trend(months: int = 6) -> list:
+    """
+    Get the authenticated user's monthly spending trend.
+
+    Includes the current month and preceding months.
+    Maximum supported range is 24 months.
+    """
+    if not 1 <= months <= 24:
+        raise ValueError("Months must be between 1 and 24.")
+
+    db = get_db()
+
+    try:
+        user_id = get_authenticated_user_id(db)
+
+        results = fetch_monthly_trend(
+            db=db,
+            user_id=user_id,
+            months=months,
+        )
+
+        return [
+            {
+                "month": item["month"],
+                "total_spent": str(item["total_spent"]),
+                "transaction_count": item["transaction_count"],
+            }
+            for item in results
+        ]
 
     finally:
         db.close()
