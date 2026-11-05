@@ -1,11 +1,15 @@
-
+import { Suspense } from "react";
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
 
-export default async function ProfilePage() {
+async function ProfileContent() {
+  await connection();
+
   const { user } = await withAuth();
 
   if (!user) {
-    return <p>Not authenticated</p>;
+    redirect("/sign-in");
   }
 
   return (
@@ -24,5 +28,17 @@ export default async function ProfilePage() {
         )}
       </pre>
     </main>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="p-10">Loading profile...</main>
+      }
+    >
+      <ProfileContent />
+    </Suspense>
   );
 }
