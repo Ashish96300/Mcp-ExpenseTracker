@@ -40,3 +40,30 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+@'
+
+# Local MCP OAuth client credentials and token caches
+mcp-remote-alex/
+
+@(
+    "# Python-generated files"
+    "__pycache__/"
+    "*.py[oc]"
+    "build/"
+    "dist/"
+    "wheels/"
+    "*.egg-info"
+    ""
+    "# Virtual environments"
+    ".env"
+    ".venv"
+    ".neon"
+    "node_modules/"
+    ""
+    "# Local MCP OAuth client credentials and token caches"
+    "mcp-remote-alex/"
+    ""
+    "# Local diagnostic export; may contain sensitive information"
+    "finora-full.txt"
+) | Set-Content .gitignore
