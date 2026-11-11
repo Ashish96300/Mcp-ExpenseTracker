@@ -39,11 +39,9 @@ MCP_BASE_URL = os.getenv(
     "http://localhost:8000"
 ).rstrip("/")
 
-print(MCP_BASE_URL)
 
 MCP_RESOURCE_URL = f"{MCP_BASE_URL}/mcp"
 
-print(MCP_RESOURCE_URL)
 
 # Verify WorkOS-issued JWTs.
 token_verifier = JWTVerifier(
@@ -82,7 +80,6 @@ def get_authenticated_user_id(db) -> int:
 
     if not isinstance(workos_user_id, str) or not workos_user_id.strip():
         raise PermissionError("Invalid authenticated identity.")
-    print(f"[MCP AUTH] WorkOS subject={workos_user_id!r}")
     
     user = (
         db.query(User)
@@ -94,11 +91,6 @@ def get_authenticated_user_id(db) -> int:
         raise PermissionError(
             "Your WorkOS account is not linked to a finance account."
         )
-    print(f"[MCP AUTH] Resolved local user_id={user.id}")
-    print(
-        f"[MCP AUTH] Local user_id={user.id}, "
-        f"subject_matches_db={user.workos_user_id == workos_user_id}"
-    )
     return user.id
     
 
