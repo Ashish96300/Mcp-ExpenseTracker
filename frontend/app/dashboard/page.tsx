@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import ExpenseOverview from "./ExpenseOverview";
+import { logout } from "../actions/auth";
 
 const navigation = [
   { label: "Overview", href: "/dashboard", icon: "◫" },
@@ -73,6 +74,14 @@ async function DashboardContent() {
               <p className="truncate text-xs text-slate-400">
                 {user.email}
               </p>
+              <form action={logout}>
+  <button
+    type="submit"
+    className="..."
+  >
+    Sign out
+  </button>
+</form>
             </div>
           </div>
         </div>
