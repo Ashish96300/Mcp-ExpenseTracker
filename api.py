@@ -39,10 +39,59 @@ from services.summary_service import (
     get_monthly_trend,
 )
 
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from fastapi import Request
+from services.rate_limiter import rate_limiter
+from services.rate_limiter import RateLimitStatus
+
 load_dotenv()
 
-app = FastAPI(title="Personal Finance API")
+#--------------------------------------------------------------------------------------------
+# app = FastAPI(title="Personal Finance API")
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+
+raw_allowed_hosts = os.getenv("ALLOWED_HOSTS", "")
+
+if raw_allowed_hosts.strip():
+    ALLOWED_HOSTS = [
+        host.strip()
+        for host in raw_allowed_hosts.split(",")
+        if host.strip()
+    ]
+elif ENVIRONMENT == "production":
+    raise RuntimeError(
+        "ALLOWED_HOSTS must be configured in production."
+    )
+else:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
+
+if "*" in ALLOWED_HOSTS:
+    raise RuntimeError(
+        "Wildcard hosts are not allowed."
+    )
+
+app = FastAPI(
+    title="Personal Finance API",
+    docs_url=None if ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if ENVIRONMENT == "production" else "/redoc",
+    openapi_url=None if ENVIRONMENT == "production" else "/openapi.json",
+)
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=ALLOWED_HOSTS,
+)
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Cache-Control"] = "no-store"
+
+    return response
+#-------------------------------------------------------------------------------------------
 # Internal JWT configuration
 INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET")
 INTERNAL_API_ISSUER = "finora-web"
@@ -129,6 +178,47 @@ def get_current_user_id(
 
 
 # --------------------------------------------------
+# RATE LIMITING
+# --------------------------------------------------
+
+def rate_limit_user(limit: int, action: str):
+    def dependency(
+        user_id: int = Depends(get_current_user_id),
+    ) -> int:
+        status, retry_after = rate_limiter.check(
+            key=f"api:{action}:user:{user_id}",
+            limit=limit,
+            window_seconds=60,
+        )
+
+        if status == RateLimitStatus.CAPACITY_EXCEEDED:
+            raise HTTPException(
+                status_code=503,
+                detail="Rate limiter capacity temporarily exhausted.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        if status == RateLimitStatus.RATE_LIMITED:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        return user_id
+
+    return dependency
+
+READ_LIMIT = int(os.getenv("RATE_LIMIT_READS_PER_MINUTE", "60"))
+WRITE_LIMIT = int(os.getenv("RATE_LIMIT_WRITES_PER_MINUTE", "20"))
+PROVISIONING_LIMIT = int(
+    os.getenv("RATE_LIMIT_PROVISIONING_PER_MINUTE", "10")
+)
+
+get_rate_limited_reader = rate_limit_user(READ_LIMIT, "read")
+get_rate_limited_writer = rate_limit_user(WRITE_LIMIT, "write")
+
+# --------------------------------------------------
 # REQUEST SCHEMAS
 # --------------------------------------------------
 
@@ -186,6 +276,25 @@ def provision_user(
 ):
     expected_secret = os.getenv("PROVISIONING_SECRET")
 
+    status, retry_after = rate_limiter.check(
+        key="api:provisioning:global",
+        limit=PROVISIONING_LIMIT,
+        window_seconds=60,
+)
+
+    if status == RateLimitStatus.CAPACITY_EXCEEDED:
+        raise HTTPException(
+            status_code=503,
+            detail="Rate limiter capacity temporarily exhausted.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    if status == RateLimitStatus.RATE_LIMITED:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many provisioning requests. Please try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
     if not expected_secret:
         raise HTTPException(
             status_code=503,
@@ -230,7 +339,8 @@ def provision_user(
 @app.post("/expenses", status_code=status.HTTP_201_CREATED)
 def add_expense(
     payload: CreateExpenseRequest,
-    user_id: int = Depends(get_current_user_id),
+    # user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(get_rate_limited_writer),
     db: Session = Depends(get_db_session),
 ):
 
@@ -261,7 +371,8 @@ def get_user_expenses(
     category: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=10, ge=1, le=100),
-    user_id: int = Depends(get_current_user_id),
+    # user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(get_rate_limited_reader),
     db: Session = Depends(get_db_session),
 ):
     if start_date and end_date and start_date > end_date:
@@ -297,7 +408,8 @@ from datetime import datetime
 @app.get("/summary/monthly")
 def monthly_summary(
     month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
-    user_id: int = Depends(get_current_user_id),
+    #user_id: int = Depends(get_current_user_id),
+     user_id: int = Depends(get_rate_limited_reader),
     db: Session = Depends(get_db_session),
 ):
     try:
@@ -326,7 +438,8 @@ def monthly_summary(
 @app.get("/summary/categories")
 def category_summary(
     month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
-    user_id: int = Depends(get_current_user_id),
+    # user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(get_rate_limited_reader),
     db: Session = Depends(get_db_session),
 ):
     try:
@@ -352,7 +465,8 @@ def category_summary(
 @app.get("/summary/trend")
 def monthly_trend(
     months: int = Query(default=6, ge=1, le=24),
-    user_id: int = Depends(get_current_user_id),
+    # user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(get_rate_limited_reader),
     db: Session = Depends(get_db_session),
 ):
     results = get_monthly_trend(db, user_id, months)
@@ -374,7 +488,8 @@ def monthly_trend(
 def update_user_expense(
     expense_id: int,
     payload: UpdateExpenseRequest,
-    user_id: int = Depends(get_current_user_id),
+    # user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends( get_rate_limited_writer),
     db: Session = Depends(get_db_session),
 ):
 
@@ -412,7 +527,8 @@ def update_user_expense(
 @app.delete("/expenses/{expense_id}")
 def delete_user_expense(
     expense_id: int,
-    user_id: int = Depends(get_current_user_id),
+    # user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(get_rate_limited_writer),
     db: Session = Depends(get_db_session),
 ):
 
