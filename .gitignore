@@ -17,3 +17,5 @@ mcp-remote-alex/
 
 # Local diagnostic export; may contain sensitive information
 finora-full.txt
+test_mcp_rate_limit_middleware.py
+tests

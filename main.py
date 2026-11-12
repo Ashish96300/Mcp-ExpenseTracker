@@ -24,6 +24,14 @@ from services.summary_service import (
     get_monthly_trend as fetch_monthly_trend,
 )
 
+import logging
+
+from fastmcp.server.middleware import Middleware, MiddlewareContext
+from services.rate_limiter import InMemoryRateLimiter, RateLimitStatus
+import uvicorn
+from middleware.mcp_http_security import MCPHttpSecurityMiddleware
+from middleware.mcp_request_size import MCPRequestSizeMiddleware
+
 load_dotenv()
 
 # WorkOS configuration
@@ -63,7 +71,74 @@ mcp = FastMCP(
     auth=auth_provider,
 )
 
+#-----------
+logger = logging.getLogger(__name__)
 
+# Separate limiter instance for the MCP service.
+mcp_rate_limiter = InMemoryRateLimiter(max_buckets=10_000)
+
+
+class MCPToolRateLimitMiddleware(Middleware):
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        # print("🔥 MCP TOOL MIDDLEWARE HIT", flush=True)
+
+        # Get the verified user's identity from the authentication context.
+        access_token = get_access_token()
+
+        subject = None
+        if access_token and isinstance(access_token.claims, dict):
+            subject = access_token.claims.get("sub")
+
+        # Authentication remains the primary gate.
+        if not subject:
+            logger.warning(
+                "MCP rate-limit audit: authenticated subject unavailable"
+            )
+            return await call_next(context)
+
+        tool_name = context.message.name
+        # print(
+        #     f"MCP AUDIT | tool={tool_name} | subject={subject}",
+        #     flush=True,
+        # )
+
+        # Classify known read tools separately; unknown tools count as writes.
+        if tool_name.startswith("get_"):
+            action = "read"
+            limit = 120
+        else:
+            action = "write"
+            limit = 30
+
+        key = f"mcp:{action}:user:{subject}"
+
+        status, retry_after = mcp_rate_limiter.check(
+            key=key,
+            limit=limit,
+            window_seconds=60,
+        )
+        if status == RateLimitStatus.RATE_LIMITED:
+            logger.warning(
+                "MCP rate-limit audit: limit reached "
+                "tool=%s action=%s retry_after=%s",
+                tool_name,
+                action,
+                retry_after,
+            )
+
+        elif status == RateLimitStatus.CAPACITY_EXCEEDED:
+            logger.error(
+                "MCP rate-limit audit: bucket capacity exceeded "
+                "tool=%s action=%s",
+                tool_name,
+                action,
+            )
+
+        return await call_next(context)
+
+
+mcp.add_middleware(MCPToolRateLimitMiddleware())
 def get_authenticated_user_id(db) -> int:
     """
     Resolve the verified WorkOS identity to our local database user.
@@ -325,31 +400,39 @@ def get_monthly_trend(months: int = 6) -> list:
     finally:
         db.close()
 
-
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
 
-    mcp.run(
-        transport="http",
-        host="0.0.0.0",
-        port=port,
-        path="/mcp",
+    allowed_hosts = set(
+        os.getenv("MCP_ALLOWED_HOSTS", "").split(",")
     )
 
+    allowed_origins = set(
+        os.getenv("MCP_ALLOWED_ORIGINS", "").split(",")
+    )
 
+    security_mode = os.getenv("MCP_SECURITY_MODE", "log")
 
+    app = mcp.http_app(path="/mcp", transport="http")
 
-# fetch("/api/expenses", {
-#   method: "POST",
-#   headers: {
-#     "Content-Type": "application/json"
-#   },
-#   body: JSON.stringify({
-#     amount: 250,
-#     description: "Dinner",
-#     expense_date: "2026-11-03",
-#     category: "Food"
-#   })
-# })
-# .then(res => res.json())
-# .then(console.log);
+    # Request-size protection
+    app.add_middleware(
+        MCPRequestSizeMiddleware,
+        max_body_size=1_048_576,
+    )
+
+    # HTTP host and origin security
+    app.add_middleware(
+        MCPHttpSecurityMiddleware,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
+        security_mode=security_mode,
+    )
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        lifespan="on",
+        timeout_graceful_shutdown=0,
+    )
