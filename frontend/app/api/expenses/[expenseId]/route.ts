@@ -3,6 +3,7 @@ import {
   getFinanceApiHeaders,
   getFinanceApiUrl,
 } from "@/lib/finance-api";
+import { forwardApiResponse } from "@/lib/forward-api-response";
 
 // export const dynamic = "force-dynamic";
 
@@ -44,13 +45,15 @@ export async function PATCH(
 
     const data = await response.text();
 
-    return new NextResponse(data, {
-      status: response.status,
-      headers: {
-        "Content-Type":
-          response.headers.get("Content-Type") ?? "application/json",
-      },
-    });
+    // return new NextResponse(data, {
+    //   status: response.status,
+    //   headers: {
+    //     "Content-Type":
+    //       response.headers.get("Content-Type") ?? "application/json",
+    //   },
+    // });
+    return forwardApiResponse(response, data);
+
   } catch (error) {
     if (
       error instanceof Error &&
@@ -98,13 +101,15 @@ export async function DELETE(
 
     const data = await response.text();
 
-    return new NextResponse(data, {
-      status: response.status,
-      headers: {
-        "Content-Type":
-          response.headers.get("Content-Type") ?? "application/json",
-      },
-    });
+    // return new NextResponse(data, {
+    //   status: response.status,
+    //   headers: {
+    //     "Content-Type":
+    //       response.headers.get("Content-Type") ?? "application/json",
+    //   },
+    // });
+    return forwardApiResponse(response, data);
+    
   } catch (error) {
     if (
       error instanceof Error &&

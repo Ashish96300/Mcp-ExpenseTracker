@@ -4,7 +4,7 @@ import {
   getFinanceApiHeaders,
   getFinanceApiUrl,
 } from "@/lib/finance-api";
-
+import { forwardApiResponse } from "@/lib/forward-api-response";
 const allowedTypes = ["monthly", "categories", "trend"];
 
 type RouteContext = {
@@ -41,13 +41,14 @@ export async function GET(
 
     const body = await response.text();
 
-    return new NextResponse(body, {
-      status: response.status,
-      headers: {
-        "Content-Type":
-          response.headers.get("content-type") ?? "application/json",
-      },
-    });
+    // return new NextResponse(body, {
+    //   status: response.status,
+    //   headers: {
+    //     "Content-Type":
+    //       response.headers.get("content-type") ?? "application/json",
+    //   },
+    // });
+    return forwardApiResponse(response, body);
   } catch (error) {
     if (
       error instanceof Error &&
