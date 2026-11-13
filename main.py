@@ -31,6 +31,7 @@ from services.rate_limiter import InMemoryRateLimiter, RateLimitStatus
 import uvicorn
 from middleware.mcp_http_security import MCPHttpSecurityMiddleware
 from middleware.mcp_request_size import MCPRequestSizeMiddleware
+from fastmcp.exceptions import ToolError
 
 load_dotenv()
 
@@ -81,7 +82,6 @@ mcp_rate_limiter = InMemoryRateLimiter(max_buckets=10_000)
 class MCPToolRateLimitMiddleware(Middleware):
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
-        # print("🔥 MCP TOOL MIDDLEWARE HIT", flush=True)
 
         # Get the verified user's identity from the authentication context.
         access_token = get_access_token()
@@ -92,16 +92,14 @@ class MCPToolRateLimitMiddleware(Middleware):
 
         # Authentication remains the primary gate.
         if not subject:
-            logger.warning(
-                "MCP rate-limit audit: authenticated subject unavailable"
+            logger.error(
+                "MCP rate limiter: authenticated subject unavailable"
             )
-            return await call_next(context)
+            raise ToolError(
+                "Unable to verify your identity. Please reconnect and try again."
+            )
 
         tool_name = context.message.name
-        # print(
-        #     f"MCP AUDIT | tool={tool_name} | subject={subject}",
-        #     flush=True,
-        # )
 
         # Classify known read tools separately; unknown tools count as writes.
         if tool_name.startswith("get_"):
@@ -120,19 +118,24 @@ class MCPToolRateLimitMiddleware(Middleware):
         )
         if status == RateLimitStatus.RATE_LIMITED:
             logger.warning(
-                "MCP rate-limit audit: limit reached "
-                "tool=%s action=%s retry_after=%s",
+                "MCP rate limit exceeded: user=%s tool=%s action=%s retry_after=%s",
+                subject,
                 tool_name,
                 action,
                 retry_after,
             )
+            raise ToolError(
+                f"Rate limit reached. Please retry in {retry_after} seconds."
+            )
 
         elif status == RateLimitStatus.CAPACITY_EXCEEDED:
             logger.error(
-                "MCP rate-limit audit: bucket capacity exceeded "
-                "tool=%s action=%s",
+                "MCP rate limiter capacity exceeded: user=%s tool=%s",
+                subject,
                 tool_name,
-                action,
+            )
+            raise ToolError(
+                "Rate limiting is temporarily unavailable. Please try again shortly."
             )
 
         return await call_next(context)
