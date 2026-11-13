@@ -32,6 +32,7 @@ import uvicorn
 from middleware.mcp_http_security import MCPHttpSecurityMiddleware
 from middleware.mcp_request_size import MCPRequestSizeMiddleware
 from fastmcp.exceptions import ToolError
+from starlette.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -431,7 +432,24 @@ if __name__ == "__main__":
         allowed_origins=allowed_origins,
         security_mode=security_mode,
     )
-
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:6274"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Mcp-Protocol-Version",
+            "Mcp-Session-Id",
+            "Last-Event-Id",
+        ],
+        expose_headers=[
+            "Mcp-Session-Id",
+            "Mcp-Protocol-Version",
+            "WWW-Authenticate",
+        ],
+        max_age=600,
+    )
     uvicorn.run(
         app,
         host="0.0.0.0",
