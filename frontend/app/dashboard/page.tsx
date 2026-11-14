@@ -6,6 +6,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import ExpenseOverview from "./ExpenseOverview";
 import { logout } from "../actions/auth";
+import AppSidebar from "../components/AppSidebar";
 
 const navigation = [
   { label: "Overview", href: "/dashboard", icon: "◫" },
@@ -27,65 +28,35 @@ async function DashboardContent() {
   return (
     <div className="min-h-screen bg-slate-100 md:flex">
       {/* Sidebar */}
-      <aside className="flex w-full flex-col bg-[#101B35] text-white md:min-h-screen md:w-64 md:shrink-0">
-        {/* Brand */}
-        <div className="border-b border-white/10 px-7 py-6">
-          <h1 className="text-2xl font-bold tracking-wide">
-            Finora<span className="text-blue-400">.</span>
-          </h1>
-          <p className="mt-1 text-xs text-slate-400">
-            Personal Finance Manager
-          </p>
-        </div>
+    <AppSidebar>
+      {/* User section */}
+      <div className="hidden border-t border-white/10 p-5 md:block">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-semibold">
+            {firstName.charAt(0).toUpperCase()}
+          </div>
 
-        {/* Navigation */}
-        <nav className="flex gap-2 overflow-x-auto p-4 md:flex-1 md:flex-col">
-          <p className="hidden px-3 pb-2 text-xs font-semibold uppercase tracking-widest text-slate-500 md:block">
-            Workspace
-          </p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {user.firstName || user.email}
+            </p>
+            <p className="truncate text-xs text-slate-400">
+              {user.email}
+            </p>
 
-          {navigation.map((item, index) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
-                index === 0
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-400 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <span className="text-lg">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* User section */}
-        <div className="hidden border-t border-white/10 p-5 md:block">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-semibold">
-              {firstName.charAt(0).toUpperCase()}
-            </div>
-
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {user.firstName || user.email}
-              </p>
-              <p className="truncate text-xs text-slate-400">
-                {user.email}
-              </p>
-              <form action={logout}>
-  <button
-    type="submit"
-    className="..."
-  >
-    Sign out
-  </button>
-</form>
-            </div>
+            {/* Keep your existing Sign out form and button here */}
+            <form action={logout}>
+              <button
+                type="submit"
+                className="..."
+              >
+                Sign out
+              </button>
+            </form>
           </div>
         </div>
-      </aside>
+      </div>
+    </AppSidebar>
 
       {/* Main content */}
       <main className="min-w-0 flex-1">
